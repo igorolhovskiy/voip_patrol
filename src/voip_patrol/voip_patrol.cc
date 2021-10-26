@@ -68,7 +68,7 @@ static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const c
 		status = pjsua_player_create(&file_name, 0, &call->player_id);
 		delete[] fn;
 		if (status != PJ_SUCCESS) {
-			LOG(logINFO) <<__FUNCTION__<<": [error] creating player";
+			LOG(logINFO) <<__FUNCTION__<<": [error] creating player: " << status;
 			return status;
 		}
 	}
@@ -285,7 +285,10 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 	pjmedia_stream const *pj_stream = (pjmedia_stream *)&prm.stream;
 	pjmedia_stream_info *pj_stream_info;
 
-	if (ci.state == PJSIP_INV_STATE_EARLY) return;
+	if (ci.state == PJSIP_INV_STATE_EARLY) {
+		LOG(logINFO) << __FUNCTION__ << "State is PJSIP_INV_STATE_EARLY";
+		return;
+	}
 
 	LOG(logINFO) << __FUNCTION__ << ": " << get_call_state_from_id((int)(ci.state));
 
@@ -355,7 +358,7 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 
 		if (test->rtp_stats_count > 0)
 			test->rtp_stats_json = test->rtp_stats_json + ',';
-		test->rtp_stats_json = test->rtp_stats_json + "{\"rtt\":"+to_string(rtt)+","
+			test->rtp_stats_json = test->rtp_stats_json + "{\"rtt\":"+to_string(rtt)+","
 						"\"remote_rtp_socket\": \""+infos.remoteRtpAddress+"\", "
 						"\"codec_name\": \""+infos.codecName+"\", "
 						"\"clock_rate\": \""+to_string(infos.codecClockRate)+"\", "
@@ -377,7 +380,10 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 							"\"mos_lq\": "+to_string(mos_rx)+"} "
 						"}";
 		test->rtp_stats_count++;
-		if (ci.state == PJSIP_INV_STATE_CONFIRMED) return;
+		if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
+			LOG(logINFO) << __FUNCTION__ << "stateText: " << ci.stateText << " lastReason: " << ci.lastReason;
+			return;
+		}
 		test->rtp_stats_ready = true;
 		test->update_result();
 	} catch (pj::Error e)  {
@@ -467,7 +473,7 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 			if (ci.state == PJSIP_INV_STATE_DISCONNECTED) {
 				disconnecting = true;
 			}
-			if (ci.state == PJSIP_INV_STATE_CONFIRMED){
+			if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
 				CallOpParam prm(true);
 				LOG(logINFO) <<__FUNCTION__<<": hangup : call in PJSIP_INV_STATE_CONFIRMED" ;
 				hangup(prm);
@@ -477,17 +483,21 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 	}
 	// Create player and recorder
 	if (ci.state == PJSIP_INV_STATE_CONFIRMED){
+
 		if (test->play_dtmf.length() > 0) {
 			dialDtmf(test->play_dtmf);
 			LOG(logINFO) <<__FUNCTION__<<": [dtmf]" << test->play_dtmf;
 		}
+
 		stream_to_call(this, ci.id, test->remote_user.c_str());
 		if (test->min_mos)
 			record_call(this, ci.id, test->remote_user.c_str());
 	}
 	if (ci.state == PJSIP_INV_STATE_DISCONNECTED) {
-		std::string res = "call[" + std::to_string(ci.lastStatusCode) + "] reason["+ ci.lastReason +"]";
-		LOG(logINFO) <<__FUNCTION__<<": [Call disconnected] red:"<< res;
+		std::string res = "code[" + std::to_string(ci.lastStatusCode) + "] reason["+ ci.lastReason +"]";
+		test->rtp_stats_ready = true;
+		test->update_result();
+		LOG(logINFO) <<__FUNCTION__<<": [Call disconnected]:"<< res;
 		if (player_id != -1) {
 			pjsua_player_destroy(player_id);
 			player_id = -1;
@@ -509,13 +519,13 @@ void TestAccount::setTest(Test *ptest) {
 }
 
 TestAccount::TestAccount() {
-	test=NULL;
-	config=NULL;
-	hangup_duration=0;
-	max_duration=0;
-	ring_duration=0;
-	call_count=-1;
-	accept_label="-";
+	test = NULL;
+	config = NULL;
+	hangup_duration = 0;
+	max_duration = 0;
+	ring_duration = 0;
+	call_count = -1;
+	accept_label = "default";
 }
 
 TestAccount::~TestAccount() {
@@ -586,9 +596,14 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->play_dtmf = play_dtmf;
 	}
 	calls.push_back(call);
-	if (call_count > 0)
-		call_count--;
+
+	if (call_count > 0) {
+		call_count -= 1;
+		call->test->call_count = call_count;
+	}
+
 	config->calls.push_back(call);
+
 	LOG(logINFO) <<__FUNCTION__<<"code:" << code <<" reason:"<< reason;
 	if (code  >= 100 && code <= 699) {
 		prm.statusCode = (pjsip_status_code) code;
@@ -652,6 +667,7 @@ void Test::update_result() {
 		end_time = now;
 		state = VPT_DONE;
 		std::string res = "FAIL";
+		std::string res_text = "No info";
 
 		LOG(logINFO)<<__FUNCTION__;
 		if (min_mos > 0 && mos == 0) {
@@ -659,7 +675,9 @@ void Test::update_result() {
 		}
 		if (rtp_stats && !rtp_stats_ready && result_cause_code < 300) {
 			LOG(logINFO)<<__FUNCTION__<<" push_back rtp_stats";
-			if (queued) return;
+			if (queued) {
+				return;
+			}
 			queued = true;
 			config->tests_with_rtp_stats.push_back(this);
 			return;
@@ -673,12 +691,18 @@ void Test::update_result() {
 		completed = true;
 
 		if (expected_duration && expected_duration != connect_duration) {
-			success=false;
+			res_text = "Expected duration issues";
+			success = false;
 		} else if (max_duration && max_duration < connect_duration) {
-			success=false;
+			res_text = "Connected duration issues";
+			success = false;
+		} else if (call_count > 0) {
+			res_text = "Still " + std::to_string(call_count) + " calls left";
+			success = false;
 		} else if(expected_cause_code == result_cause_code && mos >= min_mos) {
+			res_text = "Test passed";
 			res = "PASS";
-			success=true;
+			success = true;
 		}
 
 
@@ -691,8 +715,9 @@ void Test::update_result() {
 		if (type == "accept")
 			jsonFrom = remote_user;
 		string jsonTo = remote_user;
-		if (type == "accept")
+		if (type == "accept") {
 			jsonTo = local_user;
+		}
 		jsonify(&jsonFrom);
 		jsonify(&jsonTo);
 		string jsonRemoteUri = remote_uri;
@@ -704,21 +729,22 @@ void Test::update_result() {
 		string jsonReason = reason;
 		jsonify(&jsonReason);
 
-		config->json_result_count++;
-		std::string result_line_json = "{\""+std::to_string(config->json_result_count)+"\": {"
+		config->json_result_count += 1;
+		std::string result_line_json = "{\""+std::to_string(config->json_result_count)+ "/" + std::to_string(config->total_tasks_count) + "\": {"
 							"\"label\": \""+label+"\", "
 							"\"start\": \""+start_time+"\", "
 							"\"end\": \""+end_time+"\", "
 							"\"action\": \""+type+"\", "
 							"\"from\": \""+jsonFrom+"\", "
 							"\"to\": \""+jsonTo+"\", "
-
 							"\"result\": \""+res+"\", "
+							"\"result_text\": \""+res_text+"\", "
 							"\"expected_cause_code\": "+std::to_string(expected_cause_code)+", "
 							"\"cause_code\": "+std::to_string(result_cause_code)+", "
 							"\"reason\": \""+jsonReason+"\", "
 							"\"callid\": \""+jsonCallid+"\", "
 							"\"transport\": \""+transport+"\", "
+							"\"srtp\": \""+srtp+"\", "
 							"\"peer_socket\": \""+peer_socket+"\", "
 							"\"duration\": "+std::to_string(connect_duration)+", "
 							"\"expected_duration\": "+std::to_string(expected_duration)+", "
@@ -931,7 +957,7 @@ TestAccount* Config::findAccount(std::string account_name) {
 		if (acc_inf.uri.compare(0, 4, "sips") == 0)
 			proto_length = 5;
 		LOG(logINFO) <<__FUNCTION__<< ": [searching account]["<< acc_inf.id << "]["<<acc_inf.uri<<"]["<<acc_inf.uri.substr(proto_length)<<"]<>["<<account_name<<"]";
-		if (acc_inf.uri.compare(proto_length, account_name.length(), account_name) == 0 ) {
+		if (acc_inf.uri.compare(proto_length, account_name.length(), account_name) == 0) {
 			LOG(logINFO) <<__FUNCTION__<< ": found account id["<< acc_inf.id <<"] uri[" << acc_inf.uri <<"]";
 			return account;
 		}
@@ -1034,10 +1060,16 @@ replay:
 				action.set_param(param, ezxml_attr(xml_action, param.name.c_str()));
 			}
 			if ( action_type.compare("wait") == 0 ) action.do_wait(params);
-			else if ( action_type.compare("call") == 0 ) action.do_call(params, checks, x_hdrs);
-			else if ( action_type.compare("accept") == 0 ) action.do_accept(params, checks, x_hdrs);
-			else if ( action_type.compare("register") == 0 ) action.do_register(params, checks, x_hdrs);
-			else if ( action_type.compare("alert") == 0 ) action.do_alert(params);
+			else if ( action_type.compare("call") == 0 ) {
+				total_tasks_count += 1;
+				action.do_call(params, checks, x_hdrs);
+			} else if ( action_type.compare("accept") == 0 ) {
+				total_tasks_count += 1;
+				action.do_accept(params, checks, x_hdrs);
+			} else if ( action_type.compare("register") == 0 ) {
+				total_tasks_count += 1;
+				action.do_register(params, checks, x_hdrs);
+			} else if ( action_type.compare("alert") == 0 ) action.do_alert(params);
 			else if ( action_type.compare("codec") == 0 ) action.do_codec(params);
 			else if ( action_type.compare("turn") == 0 ) action.do_turn(params);
 
@@ -1196,6 +1228,10 @@ int main(int argc, char **argv){
 	config.rtp_cfg.port = 4000;
 	ep.config = &config;
 	config.ep = &ep;
+
+	std::string scenario_status_string = "";
+	char now[20] = {'\0'};
+	std::string current_time = "";
 
 	// command line argument
 	for (int i = 1; i < argc; ++i) {
@@ -1379,10 +1415,23 @@ int main(int argc, char **argv){
 
 	try {
 		// load config and execute test
+
+		get_time_string(now);
+		current_time = now;
+
+		scenario_status_string = "{\"scenario\": {\"state\":\"start\"";
+		scenario_status_string += "\", \"name\":\"" + conf_fn;
+		scenario_status_string += "\", \"time\":\"" + current_time + "\"}}";
+
+		config.result_file.write(scenario_status_string);
+		LOG(logINFO) << __FUNCTION__ << scenario_status_string;
+		config.result_file.flush();
+
 		pjsua_set_null_snd_dev();
 		ep.libStart();
 
 		config.createDefaultAccount();
+		config.total_tasks_count = 0;
 		config.process(conf_fn, log_test_fn);
 
 		LOG(logINFO) <<__FUNCTION__<<": wait complete all...";
@@ -1456,8 +1505,26 @@ int main(int argc, char **argv){
 		LOG(logINFO) <<__FUNCTION__<<": Error Found" ;
 	}
 
-	LOG(logINFO) <<__FUNCTION__<<": Watch completed, exiting  /('l')" ;
+
+	get_time_string(now);
+	current_time = now;
+
+	scenario_status_string = "{\"scenario\": {\"state\":\"end\" ,\"result\":\"";
+
+	if (config.total_tasks_count != config.json_result_count) {
+		scenario_status_string += "FAIL";
+	} else {
+		scenario_status_string += "PASS";
+	}
+	scenario_status_string += "\", \"name\":\"" + conf_fn;
+	scenario_status_string += "\", \"time\":\"" + current_time;
+	scenario_status_string += "\", \"total tasks\":\"" + std::to_string(config.total_tasks_count);
+	scenario_status_string += "\", \"completed tasks\":\"" + std::to_string(config.json_result_count) + "\"}}";
+
+	config.result_file.write(scenario_status_string);
+	LOG(logINFO)<<__FUNCTION__ << scenario_status_string;
+	config.result_file.flush();
+
+	LOG(logINFO) <<__FUNCTION__<<": Watch completed, exiting" ;
 	return ret;
 }
-
-

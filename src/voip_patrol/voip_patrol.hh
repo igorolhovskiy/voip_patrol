@@ -122,6 +122,7 @@ class Config {
 		TransportId transport_id_udp{-1};
 		TransportId transport_id_tcp{-1};
 		TransportId transport_id_tls{-1};
+		int total_tasks_count;
 		int json_result_count;
 		Action action;
 		ResultFile result_file;
@@ -206,7 +207,8 @@ class Test {
 		std::string remote_contact;
 		std::string call_direction;
 		std::string sip_call_id{""};
-		std::string label{"-"};
+		std::string label{"default"};
+		std::string accept_label{"accept_default"};
 		std::string transport;
 		std::string peer_socket;
 		std::string dtmf_recv;
@@ -220,6 +222,8 @@ class Test {
 		string rtp_stats_json;
 		string play;
 		string play_dtmf;
+		string srtp;
+		int call_count {-1};
 		bool rtp_stats_ready{false};
 		bool queued{false};
 		vector<ActionCheck> checks;
@@ -255,6 +259,7 @@ class TestAccount : public Account {
 		string play;
 		string play_dtmf;
 		string timer;
+		string srtp;
 		call_state_t wait_state;
 		std::string accept_label;
 		string reason;

@@ -1,16 +1,20 @@
 #!/bin/bash
 
-XML_CONF=${XML_CONF-"basic_server.xml"}
 RESULT_FILE=${RESULT_FILE-"result.json"}
 PORT=${PORT="5060"}
 
-echo "XML_CONF[${XML_CONF}] RESULT FILE[${RESULT_FILE}] PORT[$PORT]"
+if [ -z "${XML_CONF}" ]; then
+    for SCENARIO in /xml/*.xml; do
+        echo "------ Running ${SCENARIO} -------"
 
-if [ "$1" = "" ]; then
-	CMD="/git/voip_patrol/voip_patrol --port ${PORT} --conf /xml/${XML_CONF} --output /output/${RESULT_FILE}"
+        /git/voip_patrol/voip_patrol --port ${PORT} --conf ${SCENARIO} --output /output/${RESULT_FILE}
+
+        echo "---- Done running ${SCENARIO} ----"
+    done
 else
-	CMD="$*"
+    echo "Running 1 scenario: ${XML_CONF}"
+    /git/voip_patrol/voip_patrol --port ${PORT} --conf /xml/${XML_CONF} --output /output/${RESULT_FILE}
 fi
 
-echo "Running ${CMD}"
-exec ${CMD}
+chmod 777 /output
+chmod 666 /output/${RESULT_FILE}

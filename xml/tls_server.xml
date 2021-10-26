@@ -10,7 +10,6 @@
             code="200" reason="OK"
             ring_duration="5"
             call_count="1"
-            rtp_stats
         />
         <!-- wait for new calls until call_count is reached -->
         <action type="wait" ms="complete"/>

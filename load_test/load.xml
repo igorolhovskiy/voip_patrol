@@ -24,7 +24,7 @@
         expected_cause_code="200"
         rtp_stats="true"
         hangup="25"
-        max_ringing_duration="120"
+        max_ring_duration="120"
 	play="../voice_ref_files/reference_8000.wav"
         repeat="99"
 	/>
@@ -38,4 +38,3 @@
 
     <action type="wait" complete="true"/>
 </actions></config>
-

@@ -1,5 +1,3 @@
-[![Docker Pulls](https://img.shields.io/docker/pulls/jchavanton/voip_patrol.svg)](https://hub.docker.com/r/jchavanton/voip_patrol/)
-
 # VoIP Patrol
 ![GitHub Logo](VP_Logo_1200px-11th_Airborne_Division.patch_small2.jpg)
 
@@ -12,6 +10,8 @@ Each line in the output file is a separate JSON structure, note that the entire 
 this is because VoIP patrol will output results as they become available.
 
 It is possible to test many scenarios that are not easy to test manually like a re-invite with a new codec.
+
+This version is extension of [original project](https://github.com/jchavanton/voip_patrol) and contains changes (in reports and configuration), that are not compatible with original version
 
 ### Docker quick start
 [quick start with docker](QUICK_START.md)
@@ -377,7 +377,7 @@ DISCONNECTED
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| ringing_duration | int | ringing duration in seconds |
+| ring_duration | int | ringing duration in seconds |
 | early_media | bool | if "true" 183 with SDP and early media is used |
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | code | int | SIP cause code to return must be >100 and <700 |
@@ -388,6 +388,7 @@ DISCONNECTED
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
 | rtp_stats | bool | if "true" the json report will include a report on RTP transmission |
 | srtp | string | Comma-separated values of the following "sdes" - add SDES support, "dtls" - add "DTLS-SRTP" support, "force" - make SRTP mandatory |
+| cancel | string | "optional" - mark the test passed, if the call was canceled by the caller before answer (make sure, you set "ring_duration"), "force" - mark test passed ONLY if the call was canceled by the caller |
 | hangup | int | call duration in second before hangup |
 
 
@@ -407,7 +408,7 @@ DISCONNECTED
 | srtp | string | Comma-separated values of the following "sdes" - add SDES support, "dtls" - add "DTLS-SRTP" support, "force" - make SRTP mandatory. Note, if you don't specify "force", call would be made with plain RTP |
 | late_start | bool | if "true" no SDP will be included in the INVITE and will result in a late offer in 200 OK/ACK |
 | force_contact | string | local contact header will be overwritten by the given string |
-| max_ringing_duration | int | max ringing duration in seconds before cancel |
+| max_ring_duration | int | max ringing duration in seconds before cancel |
 | hangup | int | call duration in second before hangup |
 | repeat | int | do this call multiple times |
 

@@ -91,7 +91,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("wait_until", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("max_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("repeat", false, APType::apt_integer));
-	do_call_params.push_back(ActionParam("max_ringing_duration", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("max_ring_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("min_mos", false, APType::apt_float));
 	do_call_params.push_back(ActionParam("rtp_stats", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("late_start", false, APType::apt_bool));
@@ -123,6 +123,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("account", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("label", false, APType::apt_string));
+	do_accept_params.push_back(ActionParam("cancel", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("max_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("ring_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("response_delay", false, APType::apt_integer));
@@ -365,12 +366,12 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	string play {default_playback_file};
 	string play_dtmf {};
 	string timer {};
+	string cancel_behavoir {};
 	float min_mos {0.0};
 	int max_duration {0};
 	int ring_duration {0};
 	int early_media {false};
 	int hangup_duration {0};
-	int cancel_duration {0};
 	int re_invite_interval {0};
 	call_state_t wait_until {INV_STATE_NULL};
 	bool rtp_stats {false};
@@ -400,7 +401,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 		else if (param.name.compare("late_start") == 0) late_start = param.b_val;
 		else if (param.name.compare("wait_until") == 0) wait_until = get_call_state_from_string(param.s_val);
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
-		else if (param.name.compare("cancel") == 0) cancel_duration = param.i_val;
+		else if (param.name.compare("cancel") == 0) cancel_behavoir = param.s_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("response_delay") == 0) response_delay = param.i_val;
 	}
@@ -485,6 +486,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	acc->checks = checks;
 	acc->play = play;
 	acc->srtp = srtp;
+	acc->cancel_behavoir = cancel_behavoir;
 }
 
 
@@ -508,10 +510,9 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 	call_state_t wait_until {INV_STATE_NULL};
 	float min_mos {0.0};
 	int max_duration {0};
-	int max_ringing_duration {0};
+	int max_ring_duration {0};
 	int expected_duration {0};
 	int hangup_duration {0};
-	int cancel_duration {0};
 	int re_invite_interval {0};
 	int repeat {0};
 	bool recording {false};
@@ -541,7 +542,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 		else if (param.name.compare("force_contact") == 0) force_contact = param.s_val;
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
-		else if (param.name.compare("max_ringing_duration") == 0) max_ringing_duration = param.i_val;
+		else if (param.name.compare("max_ring_duration") == 0) max_ring_duration = param.i_val;
 		else if (param.name.compare("duration") == 0) expected_duration = param.i_val;
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
@@ -655,7 +656,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 		test->play_dtmf = play_dtmf;
 		test->min_mos = min_mos;
 		test->max_duration = max_duration;
-		test->max_ringing_duration = max_ringing_duration;
+		test->max_ring_duration = max_ring_duration;
 		test->hangup_duration = hangup_duration;
 		test->re_invite_interval = re_invite_interval;
 		test->re_invite_next = re_invite_interval;
@@ -843,10 +844,10 @@ void Action::do_wait(vector<ActionParam> &params) {
 						if (test->code) prm.statusCode = test->code;
 						else prm.statusCode = PJSIP_SC_OK;
 						call->answer(prm);
-					} else if (test->max_ringing_duration && test->max_ringing_duration <= ci.totalDuration.sec) {
+					} else if (test->max_ring_duration && test->max_ring_duration <= ci.totalDuration.sec) {
 						LOG(logINFO) <<__FUNCTION__<<"[cancelling:call]["<<call->getId()<<"][test]["<<(ci.role==0?"CALLER":"CALLEE")<<"]["
 						     << ci.callIdString <<"]["<<ci.remoteUri<<"]["<<ci.stateText<<"|"<<ci.state<<"]duration["
-						     << ci.totalDuration.sec <<">="<<test->max_ringing_duration<<"]";
+						     << ci.totalDuration.sec <<">="<<test->max_ring_duration<<"]";
 						CallOpParam prm(true);
 						try {
 							call->hangup(prm);

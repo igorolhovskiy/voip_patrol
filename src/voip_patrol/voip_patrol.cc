@@ -475,7 +475,6 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 			}
 			if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
 				CallOpParam prm(true);
-				LOG(logINFO) <<__FUNCTION__<<": hangup : call in PJSIP_INV_STATE_CONFIRMED" ;
 				hangup(prm);
 				LOG(logINFO) <<__FUNCTION__<<": hangup ok";
 			}
@@ -571,6 +570,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->ring_duration = ring_duration;
 		call->test->re_invite_interval = re_invite_interval;
 		call->test->expected_cause_code = 200;
+		call->test->cancel_behavoir = cancel_behavoir;
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
 
 		call->test->local_user = ci.localUri;
@@ -661,179 +661,183 @@ void jsonify(std::string *str) {
 }
 
 void Test::update_result() {
-		char now[20] = {'\0'};
-		bool success = false;
-		get_time_string(now);
-		end_time = now;
-		state = VPT_DONE;
-		std::string res = "FAIL";
-		std::string res_text = "No info";
+	char now[20] = {'\0'};
+	bool success = false;
+	get_time_string(now);
+	end_time = now;
+	state = VPT_DONE;
+	std::string res = "FAIL";
+	std::string res_text = "No info";
 
-		LOG(logINFO)<<__FUNCTION__;
-		if (min_mos > 0 && mos == 0) {
-				return;
-		}
-		if (rtp_stats && !rtp_stats_ready && result_cause_code < 300) {
-			LOG(logINFO)<<__FUNCTION__<<" push_back rtp_stats";
-			if (queued) {
-				return;
-			}
-			queued = true;
-			config->tests_with_rtp_stats.push_back(this);
+	LOG(logINFO)<<__FUNCTION__;
+	if (min_mos > 0 && mos == 0) {
+			return;
+	}
+	if (rtp_stats && !rtp_stats_ready && result_cause_code < 300) {
+		LOG(logINFO)<<__FUNCTION__<<" push_back rtp_stats";
+		if (queued) {
 			return;
 		}
-		std::lock_guard<std::mutex> lock(process_result);
-		if (completed) {
-			LOG(logINFO)<<__FUNCTION__<<"["<<this<<"]"<<" already completed\n";
-			return;
+		queued = true;
+		config->tests_with_rtp_stats.push_back(this);
+		return;
+	}
+	std::lock_guard<std::mutex> lock(process_result);
+	if (completed) {
+		LOG(logINFO)<<__FUNCTION__<<"["<<this<<"]"<<" already completed\n";
+		return;
+	}
+	LOG(logINFO)<<__FUNCTION__<<"["<<this<<"]"<<"  completing\n";
+	completed = true;
+
+	if (expected_duration && expected_duration != connect_duration) {
+		res_text = "Expected duration issues";
+	} else if (max_duration && max_duration < connect_duration) {
+		res_text = "Connected duration issues";
+	} else if (call_count > 0) {
+		res_text = "Still " + std::to_string(call_count) + " calls left";
+	} else if (result_cause_code != 487 && cancel_behavoir.compare("force") == 0) {
+		res_text = "Call should be canceled";
+	} else if (result_cause_code == 487 && (cancel_behavoir.compare("optional") == 0 || cancel_behavoir.compare("force") == 0)) {
+		res_text = "Call canceled";
+		res = "PASS";
+		success = true;
+	} else if (expected_cause_code == result_cause_code && mos >= min_mos) {
+		res_text = "Test passed";
+		res = "PASS";
+		success = true;
+	}
+
+
+	// JSON report
+	string jsonLocalUri = local_uri;
+	jsonify(&jsonLocalUri);
+	string jsonLocalContact = local_contact;
+	jsonify(&jsonLocalContact);
+	string jsonFrom = local_user;
+	if (type == "accept")
+		jsonFrom = remote_user;
+	string jsonTo = remote_user;
+	if (type == "accept") {
+		jsonTo = local_user;
+	}
+	jsonify(&jsonFrom);
+	jsonify(&jsonTo);
+	string jsonRemoteUri = remote_uri;
+	jsonify(&jsonRemoteUri);
+	string jsonRemoteContact = remote_contact;
+	jsonify(&jsonRemoteContact);
+	string jsonCallid = sip_call_id;
+	jsonify(&jsonCallid);
+	string jsonReason = reason;
+	jsonify(&jsonReason);
+
+	config->json_result_count += 1;
+	std::string result_line_json = "{\""+std::to_string(config->json_result_count)+ "/" + std::to_string(config->total_tasks_count) + "\": {"
+						"\"label\": \"" + label + "\", "
+						"\"start\": \"" + start_time + "\", "
+						"\"end\": \"" + end_time + "\", "
+						"\"action\": \"" + type + "\", "
+						"\"from\": \"" + jsonFrom + "\", "
+						"\"to\": \"" + jsonTo + "\", "
+						"\"result\": \"" + res + "\", "
+						"\"result_text\": \"" + res_text + "\", "
+						"\"expected_cause_code\": " + std::to_string(expected_cause_code) + ", "
+						"\"cause_code\": " + std::to_string(result_cause_code) + ", "
+						"\"cancel_behavoir\": \"" + cancel_behavoir + "\", "
+						"\"reason\": \"" + jsonReason + "\", "
+						"\"callid\": \"" + jsonCallid + "\", "
+						"\"transport\": \"" + transport + "\", "
+						"\"srtp\": \"" + srtp + "\", "
+						"\"peer_socket\": \"" + peer_socket + "\", "
+						"\"duration\": " + std::to_string(connect_duration) + ", "
+						"\"expected_duration\": " + std::to_string(expected_duration) + ", "
+						"\"max_duration\": " + std::to_string(max_duration) + ", "
+						"\"hangup_duration\": " + std::to_string(hangup_duration);
+	if (dtmf_recv.length() > 0)
+		result_line_json += ", \"dtmf_recv\": \""+dtmf_recv+"\"";
+
+
+	result_line_json += ", \"call_info\":{"
+						"\"local_uri\": \""+jsonLocalUri+"\", "
+						"\"remote_uri\": \""+jsonRemoteUri+"\", "
+						"\"local_contact\": \""+jsonLocalContact+"\", "
+						"\"remote_contact\": \""+jsonRemoteContact+"\" "
+						"}";
+
+	string result_checks_json {};
+	int x {0};
+	for (auto check : checks) {
+		LOG(logINFO)<<__FUNCTION__<<"check header["<< check.hdr.hName <<"] result["<< check.result <<"]";
+		if (x>0) result_checks_json += ",";
+		string result = check.result ? "PASS": "FAIL";
+
+		result_checks_json += "\""+to_string(x)+"\":{";
+		if (check.regex.empty()) {
+			result_checks_json += "\"header_name\": \""+check.hdr.hName+"\", "
+						"\"header_value\": \""+check.hdr.hValue+"\", ";
+		} else {
+			string json_val {check.regex};
+			jsonify(&json_val);
+			result_checks_json += "\"method\": \""+check.method+"\", "
+						"\"regex\": \""+json_val+"\", ";
 		}
-		LOG(logINFO)<<__FUNCTION__<<"["<<this<<"]"<<"  completing\n";
-		completed = true;
+		result_checks_json += "\"result\": \""+ result +"\"}";
+		x++;
+	}
+	if (!result_checks_json.empty())
+		result_line_json += ", \"check\":{" + result_checks_json + "}";
 
-		if (expected_duration && expected_duration != connect_duration) {
-			res_text = "Expected duration issues";
-			success = false;
-		} else if (max_duration && max_duration < connect_duration) {
-			res_text = "Connected duration issues";
-			success = false;
-		} else if (call_count > 0) {
-			res_text = "Still " + std::to_string(call_count) + " calls left";
-			success = false;
-		} else if(expected_cause_code == result_cause_code && mos >= min_mos) {
-			res_text = "Test passed";
-			res = "PASS";
-			success = true;
-		}
+	if (rtp_stats && rtp_stats_ready)
+		result_line_json += ", \"rtp_stats\":[" + rtp_stats_json + "]";
+	result_line_json += "}}";
 
+	config->result_file.write(result_line_json);
+	LOG(logINFO)<<__FUNCTION__<<"["<<now<<"]" << result_line_json;
+	config->result_file.flush();
 
-		// JSON report
-		string jsonLocalUri = local_uri;
-		jsonify(&jsonLocalUri);
-		string jsonLocalContact = local_contact;
-		jsonify(&jsonLocalContact);
-		string jsonFrom = local_user;
-		if (type == "accept")
-			jsonFrom = remote_user;
-		string jsonTo = remote_user;
-		if (type == "accept") {
-			jsonTo = local_user;
-		}
-		jsonify(&jsonFrom);
-		jsonify(&jsonTo);
-		string jsonRemoteUri = remote_uri;
-		jsonify(&jsonRemoteUri);
-		string jsonRemoteContact = remote_contact;
-		jsonify(&jsonRemoteContact);
-		string jsonCallid = sip_call_id;
-		jsonify(&jsonCallid);
-		string jsonReason = reason;
-		jsonify(&jsonReason);
+	LOG(logINFO)<<" ["<<type<<"]"<<endl;
 
-		config->json_result_count += 1;
-		std::string result_line_json = "{\""+std::to_string(config->json_result_count)+ "/" + std::to_string(config->total_tasks_count) + "\": {"
-							"\"label\": \""+label+"\", "
-							"\"start\": \""+start_time+"\", "
-							"\"end\": \""+end_time+"\", "
-							"\"action\": \""+type+"\", "
-							"\"from\": \""+jsonFrom+"\", "
-							"\"to\": \""+jsonTo+"\", "
-							"\"result\": \""+res+"\", "
-							"\"result_text\": \""+res_text+"\", "
-							"\"expected_cause_code\": "+std::to_string(expected_cause_code)+", "
-							"\"cause_code\": "+std::to_string(result_cause_code)+", "
-							"\"reason\": \""+jsonReason+"\", "
-							"\"callid\": \""+jsonCallid+"\", "
-							"\"transport\": \""+transport+"\", "
-							"\"srtp\": \""+srtp+"\", "
-							"\"peer_socket\": \""+peer_socket+"\", "
-							"\"duration\": "+std::to_string(connect_duration)+", "
-							"\"expected_duration\": "+std::to_string(expected_duration)+", "
-							"\"max_duration\": "+std::to_string(max_duration)+", "
-							"\"hangup_duration\": "+std::to_string(hangup_duration);
-		if (dtmf_recv.length() > 0)
-			result_line_json += ", \"dtmf_recv\": \""+dtmf_recv+"\"";
+	// prepare HTML report
+	std::string td_style= "style='border-color:#98B4E5;border-style:solid;padding:3px;border-width:1px;'";
+	std::string td_hd_style = "style='border-color:#98B4E5;background-color: #EEF2F5;border-style:solid;padding:3px;border-width:1px;'";
+	std::string td_small_style="style='padding:1px;width:50%;border-style:solid;border-spacing:0px;border-width:1px;border-color:#98B4E5;text-align:center;font-size:8pt'";
+	if (config->testResults.size() == 0){
+		std::string headers = "<tr>"
+			"<td "+td_hd_style+">label</td>"
+			"<td "+td_hd_style+">start/end</td>"
+			"<td "+td_hd_style+">type</td><td "+td_hd_style+">result</td>"
+			"<td "+td_hd_style+">cause code</td><td "+td_hd_style+">reason</td>"
+			"<td "+td_hd_style+">duration</td>"
+			"<td "+td_hd_style+">from</td><td "+td_hd_style+">to</td>\r\n";
+		config->testResults.push_back(headers);
+	}
+	std::string mos_color = "green";
+	std::string code_color = "green";
+	if (expected_cause_code != result_cause_code)
+		code_color = "red";
+	if (mos < min_mos)
+		mos_color = "red";
+	if (!success)
+		res = "<font color='red'>"+res+"</font>";
 
-
-		result_line_json += ", \"call_info\":{"
-							"\"local_uri\": \""+jsonLocalUri+"\", "
-							"\"remote_uri\": \""+jsonRemoteUri+"\", "
-							"\"local_contact\": \""+jsonLocalContact+"\", "
-							"\"remote_contact\": \""+jsonRemoteContact+"\" "
-							"}";
-
-		string result_checks_json {};
-		int x {0};
-		for (auto check : checks) {
-			LOG(logINFO)<<__FUNCTION__<<"check header["<< check.hdr.hName <<"] result["<< check.result <<"]";
-			if (x>0) result_checks_json += ",";
-			string result = check.result ? "PASS": "FAIL";
-
-			result_checks_json += "\""+to_string(x)+"\":{";
-			if (check.regex.empty()) {
-				result_checks_json += "\"header_name\": \""+check.hdr.hName+"\", "
-							"\"header_value\": \""+check.hdr.hValue+"\", ";
-			} else {
-				string json_val {check.regex};
-				jsonify(&json_val);
-				result_checks_json += "\"method\": \""+check.method+"\", "
-							"\"regex\": \""+json_val+"\", ";
-			}
-			result_checks_json += "\"result\": \""+ result +"\"}";
-			x++;
-		}
-		if (!result_checks_json.empty())
-			result_line_json += ", \"check\":{" + result_checks_json + "}";
-
-		if (rtp_stats && rtp_stats_ready)
-			result_line_json += ", \"rtp_stats\":[" + rtp_stats_json + "]";
-		result_line_json += "}}";
-
-		config->result_file.write(result_line_json);
-		LOG(logINFO)<<__FUNCTION__<<"["<<now<<"]" << result_line_json;
-		config->result_file.flush();
-
-		LOG(logINFO)<<" ["<<type<<"]"<<endl;
-
-		// prepare HTML report
-		std::string td_style= "style='border-color:#98B4E5;border-style:solid;padding:3px;border-width:1px;'";
-		std::string td_hd_style = "style='border-color:#98B4E5;background-color: #EEF2F5;border-style:solid;padding:3px;border-width:1px;'";
-		std::string td_small_style="style='padding:1px;width:50%;border-style:solid;border-spacing:0px;border-width:1px;border-color:#98B4E5;text-align:center;font-size:8pt'";
-		if (config->testResults.size() == 0){
-			std::string headers = "<tr>"
-				"<td "+td_hd_style+">label</td>"
-				"<td "+td_hd_style+">start/end</td>"
-				"<td "+td_hd_style+">type</td><td "+td_hd_style+">result</td>"
-				"<td "+td_hd_style+">cause code</td><td "+td_hd_style+">reason</td>"
-				"<td "+td_hd_style+">duration</td>"
-				"<td "+td_hd_style+">from</td><td "+td_hd_style+">to</td>\r\n";
-			config->testResults.push_back(headers);
-		}
-		std::string mos_color = "green";
-		std::string code_color = "green";
-		if (expected_cause_code != result_cause_code)
-			code_color = "red";
-		if (mos < min_mos)
-			mos_color = "red";
-		if (!success)
-			res = "<font color='red'>"+res+"</font>";
-
-		std::string html_duration_table = "<table><tr><td>expected</td><td>max</td><td>hangup</td><td>connect</td></tr><tr>"
-			"<td "+td_small_style+">"+std::to_string(expected_duration)+"</td>"
-			"<td "+td_small_style+">"+std::to_string(max_duration)+"</td>"
-			"<td "+td_small_style+">"+std::to_string(hangup_duration)+"</td>"
-			"<td "+td_small_style+">"+std::to_string(connect_duration)+"</td></tr></table>";
-		type = type +"["+std::to_string(call_id)+"]transport["+transport+"]<br>peer socket["+peer_socket+"]<br>"+sip_call_id;
-		std::string result = "<tr>"
-			"<td "+td_style+">"+label+"</td>"
-			"<td "+td_style+">"+start_time+"<br>"+end_time+"</td><td "+td_style+">"+type+"</td>"
-			"<td "+td_style+">"+res+"</td>"
-			"<td "+td_style+">"+std::to_string(expected_cause_code)+"|<font color="+code_color+">"+std::to_string(result_cause_code)+"</font></td>"
-			"<td "+td_style+">"+reason+"</td>"
-			"<td "+td_style+">"+html_duration_table+"</td>"
-			"<td "+td_style+">"+local_user+"</td>"
-			"<td "+td_style+">"+remote_user+"</td>"
-			"</tr>\r\n";
-		config->testResults.push_back(result);
+	std::string html_duration_table = "<table><tr><td>expected</td><td>max</td><td>hangup</td><td>connect</td></tr><tr>"
+		"<td "+td_small_style+">"+std::to_string(expected_duration)+"</td>"
+		"<td "+td_small_style+">"+std::to_string(max_duration)+"</td>"
+		"<td "+td_small_style+">"+std::to_string(hangup_duration)+"</td>"
+		"<td "+td_small_style+">"+std::to_string(connect_duration)+"</td></tr></table>";
+	type = type +"["+std::to_string(call_id)+"]transport["+transport+"]<br>peer socket["+peer_socket+"]<br>"+sip_call_id;
+	std::string result = "<tr>"
+		"<td "+td_style+">"+label+"</td>"
+		"<td "+td_style+">"+start_time+"<br>"+end_time+"</td><td "+td_style+">"+type+"</td>"
+		"<td "+td_style+">"+res+"</td>"
+		"<td "+td_style+">"+std::to_string(expected_cause_code)+"|<font color="+code_color+">"+std::to_string(result_cause_code)+"</font></td>"
+		"<td "+td_style+">"+reason+"</td>"
+		"<td "+td_style+">"+html_duration_table+"</td>"
+		"<td "+td_style+">"+local_user+"</td>"
+		"<td "+td_style+">"+remote_user+"</td>"
+		"</tr>\r\n";
+	config->testResults.push_back(result);
 }
 
 

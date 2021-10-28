@@ -571,6 +571,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->re_invite_interval = re_invite_interval;
 		call->test->expected_cause_code = 200;
 		call->test->cancel_behavoir = cancel_behavoir;
+		call->test->fail_on_accept = fail_on_accept;
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
 
 		call->test->local_user = ci.localUri;
@@ -690,7 +691,9 @@ void Test::update_result() {
 	LOG(logINFO)<<__FUNCTION__<<"["<<this<<"]"<<"  completing\n";
 	completed = true;
 
-	if (expected_duration && expected_duration != connect_duration) {
+	if (fail_on_accept && type == "accept") {
+		res_text = "This call should not happen";
+	} else if (expected_duration && expected_duration != connect_duration) {
 		res_text = "Expected duration issues";
 	} else if (max_duration && max_duration < connect_duration) {
 		res_text = "Connected duration issues";

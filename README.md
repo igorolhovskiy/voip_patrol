@@ -378,17 +378,18 @@ DISCONNECTED
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | ring_duration | int | ringing duration in seconds |
-| early_media | bool | if "true" 183 with SDP and early media is used |
+| early_media | bool | if `true` 183 with SDP and early media is used |
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
-| code | int | SIP cause code to return must be >100 and <700 |
-| account | string | Account will be used if it matches the user part of an incoming call RURI or "default" will catch all |
+| code | int | SIP cause code to return must be > `100` and < `700` |
+| account | string | Account will be used if it matches the user part of an incoming call RURI or `default` will catch all |
 | response_delay | int | ms delay before reponse is sent, useful to test timeouts and race conditions |
-| call_count | int | The amount of calls to receive to consider the command completed, default -1 (considered completed) |
+| call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |
 | transport | string | Force a specific transport for all messages on accepted calls, default to all transport available |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
-| rtp_stats | bool | if "true" the json report will include a report on RTP transmission |
-| srtp | string | Comma-separated values of the following "sdes" - add SDES support, "dtls" - add "DTLS-SRTP" support, "force" - make SRTP mandatory |
-| cancel | string | "optional" - mark the test passed, if the call was canceled by the caller before answer (make sure, you set "ring_duration"), "force" - mark test passed ONLY if the call was canceled by the caller |
+| rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
+| srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory |
+| cancel | string | `optional` - mark the test passed, if the call was canceled by the caller before answer, `force` - mark test passed ONLY if the call was canceled by the caller. Make sure that you set `ring_duration` > 0 |
+| fail_on_accept | bool | If `true` - than accepting this call counts as a failed test |
 | hangup | int | call duration in second before hangup |
 
 
@@ -399,14 +400,14 @@ DISCONNECTED
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | proxy | string | ip/hostname of a proxy where to send the call |
 | caller | string | From header user@host, only used if from it not specified |
-| from | string | From header complete "\&quot;Display Name\&quot; <sip:test at 127.0.0.1>"  |
-| callee | string | request URI user@host (also used in the To header unless to_uri is specified) |
+| from | string | From header complete `\&quot;Display Name\&quot; <sip:test at 127.0.0.1>`  |
+| callee | string | request URI `user@host` (also used in the To header unless to_uri is specified) |
 | to_uri | string | used@host part of the URI in the To header |
-| transport | string | force a specific transport <tcp,udp,tls,sips> |
+| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
-| rtp_stats | bool | if "true" the json report will include a report on RTP transmission |
-| srtp | string | Comma-separated values of the following "sdes" - add SDES support, "dtls" - add "DTLS-SRTP" support, "force" - make SRTP mandatory. Note, if you don't specify "force", call would be made with plain RTP |
-| late_start | bool | if "true" no SDP will be included in the INVITE and will result in a late offer in 200 OK/ACK |
+| rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
+| srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory. Note, if you don't specify `force`, call would be made with plain RTP |
+| late_start | bool | if `true` no SDP will be included in the INVITE and will result in a late offer in 200 OK/ACK |
 | force_contact | string | local contact header will be overwritten by the given string |
 | max_ring_duration | int | max ringing duration in seconds before cancel |
 | hangup | int | call duration in second before hangup |
@@ -421,20 +422,20 @@ DISCONNECTED
 | username | string | authentication username, account name, From/To/Contact header user part |
 | account | string | if not specified username is used, this is the the account name and From/To/Contact header user part |
 | registrar | string | SIP UAS handling registration where the messages will be sent |
-| transport | string | force a specific transport <tcp,udp,tls,sips> |
+| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
 | realm | string | realm use for authentication |
-| srtp | string | Comma-separated values of the following <sdes> - add SDES support, <dtls> - add "DTLS-SRTP" support, <force> - make SRTP mandatory. Used for incoming calls to this account |
-| unregister | bool | unregister the account <usename@registrar;transport=x> |
-| reg_id | int | if present outbound and other related parameters will be added see RFC5626 |
-| instance_id | int | same as reg_id, if not present, it will be generated automatically |
-| rewrite_contact | bool | default true, detect public IP when registering and rewrite the contact header |
+| srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add "DTLS-SRTP" support, `force` - make SRTP mandatory. Used for incoming calls to this account |
+| unregister | bool | unregister the account `<usename@registrar;transport=x>` |
+| reg_id | int | if present outbound and other related parameters will be added (see [RFC5626](https://datatracker.ietf.org/doc/html/rfc5626)) |
+| instance_id | int | same as `reg_id`, if not present, it will be generated automatically |
+| rewrite_contact | bool | default `true`, detect public IP when registering and rewrite the contact header |
 
 ### wait command parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| complete | bool | if "true" wait for all the test to complete (or reach their wait_until state) before executing next action or disconnecting calls and exiting, needed in most cases |
-| ms | int | the amount of milliseconds to wait before executing next action or disconnecting calls and exiting, if -1 wait forever |
+| complete | bool | if `true` wait for all the test to complete (or reach their wait_until state) before executing next action or disconnecting calls and exiting, needed in most cases |
+| ms | int | the amount of milliseconds to wait before executing next action or disconnecting calls and exiting, if `-1` wait forever |
 
 ### Example: codec configuration
 ```xml

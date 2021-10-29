@@ -385,6 +385,8 @@ DISCONNECTED
 | response_delay | int | ms delay before reponse is sent, useful to test timeouts and race conditions |
 | call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |
 | transport | string | Force a specific transport for all messages on accepted calls, default to all transport available |
+| play | string | path to file to play upon answer |
+| play_dtmf | string | list of DTMF symbols to be sent upon answer |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory |
@@ -400,10 +402,12 @@ DISCONNECTED
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | proxy | string | ip/hostname of a proxy where to send the call |
 | caller | string | From header user@host, only used if from it not specified |
-| from | string | From header complete `\&quot;Display Name\&quot; <sip:test at 127.0.0.1>`  |
+| from | string | From header complete `"Display Name" <sip:test at 127.0.0.1>`  |
 | callee | string | request URI `user@host` (also used in the To header unless to_uri is specified) |
 | to_uri | string | used@host part of the URI in the To header |
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
+| play | string | path to file to play upon answer |
+| play_dtmf | string | list of DTMF symbols to be sent upon answer |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory. Note, if you don't specify `force`, call would be made with plain RTP |

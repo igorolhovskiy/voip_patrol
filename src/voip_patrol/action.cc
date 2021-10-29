@@ -580,7 +580,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 			} else if (timer.compare("always") == 0) {
 				acc_cfg.callConfig.timerUse = PJSUA_SIP_TIMER_ALWAYS;
 			}
-			LOG(logERROR) <<__FUNCTION__<<": session timer["<<timer<<"] : "<< acc_cfg.callConfig.timerUse ;
+			LOG(logINFO) <<__FUNCTION__<<": session timer["<<timer<<"] : "<< acc_cfg.callConfig.timerUse ;
 		}
 
 		if (transport == "tcp") {
@@ -642,7 +642,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 		}
 
 		acc = config->createAccount(acc_cfg);
-		LOG(logERROR) <<__FUNCTION__<<": session timer["<<timer<<"] : "<< acc_cfg.callConfig.timerUse << " TURN:"<< acc_cfg.natConfig.turnEnabled;
+		LOG(logINFO) <<__FUNCTION__<<": session timer["<<timer<<"] :"<< acc_cfg.callConfig.timerUse << " TURN: "<< acc_cfg.natConfig.turnEnabled;
 	}
 
 	do {

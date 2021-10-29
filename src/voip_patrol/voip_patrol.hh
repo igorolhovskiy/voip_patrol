@@ -227,6 +227,7 @@ class Test {
 		int call_count {-1};
 		bool rtp_stats_ready{false};
 		bool queued{false};
+		bool fail_on_accept {false};
 		vector<ActionCheck> checks;
 		Config *config;
 	private:
@@ -255,6 +256,7 @@ class TestAccount : public Account {
 		bool unregistering {false};
 		std::string force_contact;
 		bool early_media {false};
+		bool fail_on_accept {false};
 		SipHeaderVector x_headers;
 		int call_count {-1};
 		std::string play;

@@ -141,6 +141,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("reason", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("timer", false, APType::apt_string));
+	do_accept_params.push_back(ActionParam("fail_on_accept", false, APType::apt_bool));
 	// do_wait
 	do_wait_params.push_back(ActionParam("ms", false, APType::apt_integer));
 	do_wait_params.push_back(ActionParam("complete", false, APType::apt_bool));
@@ -376,6 +377,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	call_state_t wait_until {INV_STATE_NULL};
 	bool rtp_stats {false};
 	bool late_start {false};
+	bool fail_on_accept {false};
 	string srtp {"none"};
 	int code {200};
 	int call_count {-1};
@@ -395,6 +397,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
 		else if (param.name.compare("ring_duration") == 0) ring_duration = param.i_val;
 		else if (param.name.compare("early_media") == 0) early_media = param.b_val;
+		else if (param.name.compare("fail_on_accept") == 0) fail_on_accept = param.b_val;
 		else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
 		else if (param.name.compare("rtp_stats") == 0) rtp_stats = param.b_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
@@ -466,6 +469,12 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 
 		acc = config->createAccount(acc_cfg);
 	}
+
+	if (fail_on_accept) {
+		config->total_tasks_count -= 1;
+		LOG(logINFO) <<__FUNCTION__<<" decreasing task counter to " << config->total_tasks_count << " due to this accept should not happen";
+	}
+
 	acc->hangup_duration = hangup_duration;
 	acc->re_invite_interval = re_invite_interval;
 	acc->response_delay = response_delay;
@@ -487,6 +496,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	acc->play = play;
 	acc->srtp = srtp;
 	acc->cancel_behavoir = cancel_behavoir;
+	acc->fail_on_accept	= fail_on_accept;
 }
 
 

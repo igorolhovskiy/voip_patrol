@@ -561,6 +561,9 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 
 	LOG(logINFO) <<__FUNCTION__<<":"<<" ["<< acc_inf.uri <<"]["<<call->getId()<<"]from["<<ci.remoteUri<<"]to["<<ci.localUri<<"]id["<<ci.callIdString<<"]";
 	if (!call->test) {
+		if (expected_cause_code < 100 || expected_cause_code > 700) {
+			expected_cause_code = 200;
+		}
 		string type("accept");
 		LOG(logINFO)<<__FUNCTION__<<": max call duration["<< hangup_duration <<"]";
 		call->test = new Test(config, type);

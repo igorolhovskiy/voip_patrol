@@ -142,6 +142,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("fail_on_accept", false, APType::apt_bool));
+	do_accept_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
 	// do_wait
 	do_wait_params.push_back(ActionParam("ms", false, APType::apt_integer));
 	do_wait_params.push_back(ActionParam("complete", false, APType::apt_bool));
@@ -380,6 +381,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	bool fail_on_accept {false};
 	string srtp {"none"};
 	int code {200};
+	int expected_cause_code {200};
 	int call_count {-1};
 	int response_delay {0};
 	string reason {};
@@ -391,6 +393,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 		else if (param.name.compare("play_dtmf") == 0 && param.s_val.length() > 0) play_dtmf = param.s_val;
 		else if (param.name.compare("timer") == 0 && param.s_val.length() > 0) timer = param.s_val;
 		else if (param.name.compare("code") == 0) code = param.i_val;
+		else if (param.name.compare("expected_cause_code") == 0) expected_cause_code = param.i_val;
 		else if (param.name.compare("call_count") == 0) call_count = param.i_val;
 		else if (param.name.compare("reason") == 0 && param.s_val.length() > 0) reason = param.s_val;
 		else if (param.name.compare("label") == 0 && param.s_val.length() > 0) label = param.s_val;
@@ -490,6 +493,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	acc->wait_state = wait_until;
 	acc->reason = reason;
 	acc->code = code;
+	acc->expected_cause_code = expected_cause_code;
 	acc->call_count = call_count;
 	acc->x_headers = x_headers;
 	acc->checks = checks;

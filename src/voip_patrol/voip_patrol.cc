@@ -569,7 +569,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->max_duration = max_duration;
 		call->test->ring_duration = ring_duration;
 		call->test->re_invite_interval = re_invite_interval;
-		call->test->expected_cause_code = 200;
+		call->test->expected_cause_code = expected_cause_code;
 		call->test->cancel_behavoir = cancel_behavoir;
 		call->test->fail_on_accept = fail_on_accept;
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";

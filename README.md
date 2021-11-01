@@ -381,6 +381,7 @@ DISCONNECTED
 | early_media | bool | if `true` 183 with SDP and early media is used |
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | code | int | SIP cause code to return must be > `100` and < `700` |
+| expected_cause_code | int | SIP cause to be expected from caller side as a call result. Value 487 could be combined with  `fail_on_accept` parameter |
 | account | string | Account will be used if it matches the user part of an incoming call RURI or `default` will catch all |
 | response_delay | int | ms delay before reponse is sent, useful to test timeouts and race conditions |
 | call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |

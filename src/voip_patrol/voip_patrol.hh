@@ -268,6 +268,7 @@ class TestAccount : public Account {
 		std::string accept_label;
 		std::string reason;
 		int code;
+		int expected_cause_code;
 		vector<ActionCheck> checks;
 };
 

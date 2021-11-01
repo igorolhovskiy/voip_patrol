@@ -390,6 +390,7 @@ DISCONNECTED
 | play_dtmf | string | list of DTMF symbols to be sent upon answer |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
+| min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory |
 | cancel | string | `optional` - mark the test passed, if the call was canceled by the caller before answer, `force` - mark test passed ONLY if the call was canceled by the caller. Make sure that you set `ring_duration` > 0 |
 | fail_on_accept | bool | If `true` - than accepting this call counts as a failed test |
@@ -411,6 +412,7 @@ DISCONNECTED
 | play_dtmf | string | list of DTMF symbols to be sent upon answer |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
+| min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory. Note, if you don't specify `force`, call would be made with plain RTP |
 | late_start | bool | if `true` no SDP will be included in the INVITE and will result in a late offer in 200 OK/ACK |
 | force_contact | string | local contact header will be overwritten by the given string |

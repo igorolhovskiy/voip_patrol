@@ -705,7 +705,9 @@ void Test::update_result() {
 		res_text = "Call canceled";
 		res = "PASS";
 		success = true;
-	} else if (expected_cause_code == result_cause_code && mos >= min_mos) {
+	} else if (mos < min_mos) {
+		res_text = "MOS is too low";
+	} else if (expected_cause_code == result_cause_code) {
 		res_text = "Test passed";
 		res = "PASS";
 		success = true;

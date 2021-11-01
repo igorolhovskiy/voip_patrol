@@ -478,6 +478,14 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 		LOG(logINFO) <<__FUNCTION__<<" decreasing task counter to " << config->total_tasks_count << " due to this accept should not happen";
 	}
 
+	if (expected_cause_code < 100 || expected_cause_code > 700) {
+		expected_cause_code = 200;
+	}
+
+	if (code < 100 || code > 700) {
+		code = 200;
+	}
+
 	acc->hangup_duration = hangup_duration;
 	acc->re_invite_interval = re_invite_interval;
 	acc->response_delay = response_delay;

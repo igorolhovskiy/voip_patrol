@@ -89,7 +89,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 		const pj_str_t rec_file_name = pj_str(rec_fn);
 		status = pjsua_recorder_create(&rec_file_name, 0, NULL, -1, 0, &call->recorder_id);
 		if (status != PJ_SUCCESS) {
-			LOG(logINFO) <<__FUNCTION__<<": [error] tecord_call \n";
+			LOG(logINFO) <<__FUNCTION__<<": [error] record_call:" << status << "\n";
 			return status;
 		}
 		LOG(logINFO) <<__FUNCTION__<<": [recorder] created:" << call->recorder_id << " fn:"<< rec_fn;

@@ -1428,7 +1428,7 @@ int main(int argc, char **argv){
 		get_time_string(now);
 		current_time = now;
 
-		scenario_status_string = "{\"scenario\": {\"state\":\"start\"";
+		scenario_status_string = "{\"scenario\": {\"state\":\"start";
 		scenario_status_string += "\", \"name\":\"" + conf_fn;
 		scenario_status_string += "\", \"time\":\"" + current_time + "\"}}";
 

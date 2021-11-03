@@ -347,7 +347,7 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 		Ta = rtt/2 + txStat.jitterUsec.mean/500; // extrapolating dynamice jitter buffer ~jitterx2
 		if(Ta >= mT) {
 			float X = (log10(Ta/mT)/LOG2);
-			Id = 25.0 * (pow((1+pow(X,6.0*sT)),(1.0/(6.0*sT)))-3.0*pow((1.0+pow(X/3.0,6.0*sT)),(1.0/(6.0*sT)))+2);
+			Id = 25.0 * (pow((1+pow(X,6.0*sT)),(1.0/(6JSON result file.0*sT)))-3.0*pow((1.0+pow(X/3.0,6.0*sT)),(1.0/(6.0*sT)))+2);
 		}
 		int rfactor_tx_cq = rfactor_tx - Id;
 		float mos_tx_cq = rfactor_to_mos(rfactor_tx);
@@ -876,11 +876,11 @@ bool ResultFile::open() {
 	file.open(name.c_str(), std::fstream::in | std::fstream::out | std::fstream::app);
 	if (file.is_open()) {
 		LOG(logINFO) << "JSON result file:" << name << "\n";
-	} else {
-		std::cerr <<__FUNCTION__<< " [error] test can not open log file :" << name ;
-		return false;
+
+		return true;
 	}
-	return true;
+	std::cerr <<__FUNCTION__<< " [error] test can not open log file :" << name ;
+	return false;
 }
 
 void ResultFile::close() {
@@ -1221,7 +1221,6 @@ int main(int argc, char **argv){
 	int ret = 0;
 
 	pjsip_cfg_t *pjsip_config = pjsip_cfg();
-	LOG(logINFO) <<"pjsip_config->tsx.t1 :" << pjsip_config->tsx.t1 <<"\n";
 
 	pjsip_cfg()->endpt.disable_secure_dlg_check = 1;
 
@@ -1360,6 +1359,8 @@ int main(int argc, char **argv){
 	//pjsip_cfg()->tsx.t4 = 1000;
 	if (timer_ms > 0)
 		pjsip_cfg()->tsx.td = timer_ms;
+
+	LOG(logINFO) <<"pjsip_config->tsx.t1 :" << pjsip_config->tsx.t1 <<"\n";
 
 	TransportConfig tcfg;
 	try {

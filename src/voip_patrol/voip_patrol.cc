@@ -938,25 +938,32 @@ void Config::createDefaultAccount() {
 	acc_cfg.idUri = "sip:default";
 	acc_cfg.callConfig.timerUse = PJSUA_SIP_TIMER_INACTIVE;
 
-	TestAccount *acc = createAccount(acc_cfg);
-	acc->play = default_playback_file;
+	TestAccount *account = createAccount(acc_cfg);
+	account->play = default_playback_file;
 	LOG(logINFO) <<__FUNCTION__<<" created:"<<default_playback_file <<" TURN:"<< acc_cfg.natConfig.turnEnabled;
 }
 
 TestAccount* Config::createAccount(AccountConfig acc_cfg) {
 	TestAccount *account = new TestAccount();
+
 	accounts.push_back(account);
 	account->config = this;
 	acc_cfg.mediaConfig.transportConfig.port = rtp_cfg.port;
+
 	LOG(logINFO) <<__FUNCTION__<<" rtp start port:"<< rtp_cfg.port;
+
 	acc_cfg.mediaConfig.transportConfig.boundAddress = ip_cfg.bound_address;
 	acc_cfg.mediaConfig.transportConfig.publicAddress = ip_cfg.public_address;
-	if (ip_cfg.public_address != "")
+	if (ip_cfg.public_address != "") {
 		acc_cfg.natConfig.sipStunUse = PJSUA_STUN_USE_DISABLED;
+	}
 	account->create(acc_cfg);
 	AccountInfo acc_inf = account->getInfo();
+
 	LOG(logINFO) <<__FUNCTION__<< ": ["<< acc_inf.id << "]["<<acc_inf.uri<<"]";
+
 	account->play = default_playback_file;
+
 	return account;
 }
 

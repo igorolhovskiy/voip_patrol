@@ -111,6 +111,7 @@ void Action::init_actions_params() {
 	do_register_params.push_back(ActionParam("proxy", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("realm", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("username", false, APType::apt_string));
+	do_register_params.push_back(ActionParam("auth_username", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("account", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("password", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("unregister", false, APType::apt_bool));
@@ -200,6 +201,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 	string proxy {};
 	string realm {};
 	string username {};
+	string auth_username {};
 	string account_name {};
 	string password {};
 	string reg_id {};
@@ -217,6 +219,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 		else if (param.name.compare("realm") == 0) realm = param.s_val;
 		else if (param.name.compare("account") == 0) account_name = param.s_val;
 		else if (param.name.compare("username") == 0) username = param.s_val;
+		else if (param.name.compare("auth_username") == 0) auth_username = param.s_val;
 		else if (param.name.compare("password") == 0) password = param.s_val;
 		else if (param.name.compare("reg_id") == 0) reg_id = param.s_val;
 		else if (param.name.compare("instance_id") == 0) instance_id = param.s_val;
@@ -232,14 +235,25 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 	}
 	vp::tolower(transport);
 
-	if (account_name.empty()) account_name = username;
+	if (auth_username.empty()) {
+		auth_username = username;
+	}
+
+	if (account_name.empty()) {
+		account_name = username;
+	}
+
 	account_name = account_name + "@" + registrar;
+	account_sip_id = username + "@" + registrar;
+
 	TestAccount *acc = config->findAccount(account_name);
 	if (unregister) {
 		if (acc) {
 			// We should probably create a new test ...
-			if (acc->test) acc->test->type = "unregister";
-			LOG(logINFO) <<__FUNCTION__<< " unregister ("<<account_name<<")";
+			if (acc->test) {
+				acc->test->type = "unregister";
+			}
+			LOG(logINFO) <<__FUNCTION__<< " unregister (" << account_name << ")";
 			AccountInfo acc_inf = acc->getInfo();
 			if (acc_inf.regIsActive) {
 				LOG(logINFO) <<__FUNCTION__<< " register is active";
@@ -262,7 +276,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 				LOG(logERROR) <<__FUNCTION__<<" error : unregister failed/timeout"<< std::endl;
 			return;
 		} else {
-			LOG(logINFO) <<__FUNCTION__<< "unregister: account not found ("<<account_name<<")";
+			LOG(logINFO) <<__FUNCTION__<< "unregister: account not found (" << account_name << ")";
 		}
 	}
 
@@ -275,7 +289,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 	test->type = type;
 	test->srtp = srtp;
 
-	LOG(logINFO) <<__FUNCTION__<< " >> sip:" + account_name;
+	LOG(logINFO) <<__FUNCTION__<< "register: sip:" + account_sip_id;
 	AccountConfig acc_cfg;
 	SipHeader sh;
 	sh.hName = "User-Agent";
@@ -284,7 +298,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 	setTurnConfig(acc_cfg, config);
 
 	if (reg_id != "" || instance_id != "") {
-		LOG(logINFO) <<__FUNCTION__<<" reg_id:"<<reg_id<<" instance_id:"<<instance_id;
+		LOG(logINFO) <<__FUNCTION__<< " reg_id:" << reg_id << " instance_id:" << instance_id;
 		if (transport == "udp") {
 			LOG(logINFO) <<__FUNCTION__<< " oubound rfc5626 not supported on transport UDP";
 		} else {
@@ -303,7 +317,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 
 	if (transport == "tcp") {
 		LOG(logINFO) <<__FUNCTION__<< " SIP TCP";
-		acc_cfg.idUri = "sip:" + account_name + ";transport=tcp";
+		acc_cfg.idUri = "sip:" + account_sip_id + ";transport=tcp";
 		acc_cfg.regConfig.registrarUri = "sip:" + registrar + ";transport=tcp";
 		if (!proxy.empty())
 			acc_cfg.sipConfig.proxies.push_back("sip:" + proxy + ";transport=tcp");
@@ -312,7 +326,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 			LOG(logERROR) <<__FUNCTION__<<" TLS transport not supported";
 			return;
 		}
-		acc_cfg.idUri = "sip:" + account_name + ";transport=tls";
+		acc_cfg.idUri = "sip:" + account_sip_id + ";transport=tls";
 		acc_cfg.regConfig.registrarUri = "sip:" + registrar + ";transport=tls";
 		if (!proxy.empty())
 			acc_cfg.sipConfig.proxies.push_back("sip:" + proxy + ";transport=tls");
@@ -321,19 +335,21 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 			LOG(logERROR) <<__FUNCTION__<<" TLS transport not supported";
 			return;
 		}
-		acc_cfg.idUri = "sips:" + account_name;
+		acc_cfg.idUri = "sips:" + account_sip_id;
 		acc_cfg.regConfig.registrarUri = "sips:" + registrar;
-		if (!proxy.empty())
+		if (!proxy.empty()) {
 			acc_cfg.sipConfig.proxies.push_back("sips:" + proxy);
+		}
 		LOG(logINFO) <<__FUNCTION__<< " SIPS/TLS URI Scheme";
 	} else {
 		LOG(logINFO) <<__FUNCTION__<< " SIP UDP";
-		acc_cfg.idUri = "sip:" + account_name;
+		acc_cfg.idUri = "sip:" + account_sip_id;
 		acc_cfg.regConfig.registrarUri = "sip:" + registrar;
-		if (!proxy.empty())
+		if (!proxy.empty()) {
 			acc_cfg.sipConfig.proxies.push_back("sip:" + proxy);
+		}
 	}
-	acc_cfg.sipConfig.authCreds.push_back(AuthCredInfo("digest", realm, username, 0, password));
+	acc_cfg.sipConfig.authCreds.push_back(AuthCredInfo("digest", realm, auth_username, 0, password));
 	acc_cfg.natConfig.contactRewriteUse = rewrite_contact;
 
 	// SRTP for incoming calls

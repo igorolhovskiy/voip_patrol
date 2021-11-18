@@ -347,7 +347,7 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 		Ta = rtt/2 + txStat.jitterUsec.mean/500; // extrapolating dynamice jitter buffer ~jitterx2
 		if(Ta >= mT) {
 			float X = (log10(Ta/mT)/LOG2);
-			Id = 25.0 * (pow((1+pow(X,6.0*sT)),(1.0/(6JSON result file.0*sT)))-3.0*pow((1.0+pow(X/3.0,6.0*sT)),(1.0/(6.0*sT)))+2);
+			Id = 25.0 * (pow((1+pow(X,6.0*sT)),(1.0/(6.0*sT)))-3.0*pow((1.0+pow(X/3.0,6.0*sT)),(1.0/(6.0*sT)))+2);
 		}
 		int rfactor_tx_cq = rfactor_tx - Id;
 		float mos_tx_cq = rfactor_to_mos(rfactor_tx);

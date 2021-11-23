@@ -264,6 +264,7 @@ class TestAccount : public Account {
 		std::string timer;
 		std::string srtp;
 		std::string cancel_behavoir {""};
+		std::string account_name {""};
 		call_state_t wait_state;
 		std::string accept_label;
 		std::string reason;

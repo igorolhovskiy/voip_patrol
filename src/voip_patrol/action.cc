@@ -433,7 +433,10 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	}
 
 	if (account_name.empty()) {
-		LOG(logERROR) << __FUNCTION__ << " missing action parameters <account>" ;
+		LOG(logERROR) << __FUNCTION__ << " missing action parameters <match_account>" ;
+
+		// Make sure tests are failed
+		config->total_tasks_count += 100;
 		return;
 	}
 	vp::tolower(transport);

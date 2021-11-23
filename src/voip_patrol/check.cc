@@ -40,19 +40,25 @@ bool check_regex(string m, string e) {
 
 void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, string message) {
 	std::string method = pj2Str(msg->line.req.method.name);
-	LOG(logINFO) <<__FUNCTION__<<": "+ method;
+	LOG(logINFO) << __FUNCTION__ << ": " + method;
 	// action checks for headers
 	for (vector<ActionCheck> :: iterator check = checks.begin(); check != checks.end(); ++check){
 		if (!check->regex.empty()) {
-			if (method != check->method) continue;
+			if (method != check->method) {
+				continue;
+			}
 			if (check_regex(message, check->regex)) {
 				check->result = true;
 			}
 			continue;
 		}
-		if (method != check->method) continue;
-		if (check->hdr.hName == "") continue;
-		LOG(logINFO) <<__FUNCTION__<<" check-header:"<< check->hdr.hName<<" "<<check->hdr.hValue;
+		if (method != check->method) {
+			continue;
+		}
+		if (check->hdr.hName == "") {
+			continue;
+		}
+		LOG(logINFO) << __FUNCTION__ << " check-header:"<< check->hdr.hName<<" "<<check->hdr.hValue;
 		pj_str_t header_name;
 		header_name.slen = strlen(check->hdr.hName.c_str());
 		header_name.ptr = (char*) check->hdr.hName.c_str();
@@ -62,13 +68,13 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, string message) {
 			SipHeader SHdr;
 			SHdr.fromPj(s_hdr);
 			if (check->hdr.hValue == "" || check->hdr.hValue == SHdr.hValue) {
-				LOG(logINFO) <<__FUNCTION__<< " header found and value is matching:" << SHdr.hName <<" "<< SHdr.hValue;
+				LOG(logINFO) << __FUNCTION__ << " header found and value is matching:" << SHdr.hName << " " << SHdr.hValue;
 				check->result = true;
 			} else {
-				LOG(logINFO) <<__FUNCTION__<< " header found and value is not matching:" << SHdr.hName <<" "<< SHdr.hValue;
+				LOG(logINFO) << __FUNCTION__ << " header found and value is not matching:" << SHdr.hName << " " << SHdr.hValue;
 			}
 		} else {
-			LOG(logINFO) <<__FUNCTION__<< " header not found";
+			LOG(logINFO) << __FUNCTION__ << " header not found";
 		}
 	}
 }

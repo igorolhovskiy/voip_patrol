@@ -40,7 +40,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
             callee="12012665228@target.com"
             to_uri="+12012665228@target.com"
             max_duration="20" hangup="16"
-            username="VP_ENV_USERNAME"
+            auth_username="VP_ENV_USERNAME"
             password="VP_ENV_PASSWORD"
             realm="target.com"
             rtp_stats="true"
@@ -53,54 +53,6 @@ This version is extension of [original project](https://github.com/jchavanton/vo
     <action type="wait" complete="true"/>
   </actions>
 </config>
-```
-### Sample JSON output
-```json
-{
-  "2": {
-    "label": "us-east-va",
-    "start": "17-07-2018 00:00:05",
-    "end": "17-07-2018 00:00:24",
-    "action": "call",
-    "from": "15147371787",
-    "to": "12012665228",
-    "result": "PASS",
-    "expected_cause_code": 200,
-    "cause_code": 200,
-    "reason": "Normal call clearing",
-    "callid": "7iYDFukJr-9BOLOmWg.7fZyHZeZUAwao",
-    "transport": "TLS",
-    "peer_socket": "34.226.136.32:5061",
-    "duration": 16,
-    "expected_duration": 0,
-    "max_duration": 20,
-    "hangup_duration": 16,
-    "rtp_stats_0": {
-      "rtt": 0,
-      "remote_rtp_socket": "10.250.7.88:4028",
-      "codec_name": "PCMU",
-      "clock_rate": "8000",
-      "Tx": {
-        "jitter_avg": 0,
-        "jitter_max": 0,
-        "pkt": 816,
-        "kbytes": 127,
-        "loss": 0,
-        "discard": 0,
-        "mos_lq": 4.5
-      },
-      "Rx": {
-        "jitter_avg": 0,
-        "jitter_max": 0,
-        "pkt": 813,
-        "kbytes": 127,
-        "loss": 0,
-        "discard": 0,
-        "mos_lq": 4.5
-      }
-    }
-  }
-}
 ```
 
 ### Example: starting a TLS server
@@ -119,7 +71,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
      <!-- note: default is the "catch all" account,
           else account as to match called number -->
     <action type="accept"
-            account="default"
+            match_account="default"
             hangup="5"
             play_dtmf="0123456789#*"
             play="voice_ref_files/f.wav"
@@ -139,7 +91,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 <config>
   <actions>
     <action type="accept"
-            account="default"
+            match_account="default"
             hangup="5"
             code="200" reason="OK"
     >
@@ -156,7 +108,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 <config>
   <actions>
     <action type="accept"
-            account="default"
+            match_account="default"
             hangup="5"
             code="200" reason="OK"
     >
@@ -216,6 +168,7 @@ DISCONNECTED
             transport="udp"
             account="VP_ENV_USERNAME"
             username="VP_ENV_USERNAME"
+            auth_username="VP_ENV_USERNAME"
             password="VP_ENV_PASSWORD"
             proxy="172.16.7.1"
             realm="target.com"
@@ -242,7 +195,7 @@ DISCONNECTED
             caller="16364990640@125.22.198.115"
             callee="12349099229@sip.mydomain.com"
             max_duration="55" hangup="12"
-            username="65454659288" password="adaadzWidD7T"
+            auth_username="65454659288" password="adaadzWidD7T"
             realm="sip.mydomain.com"
             re_invite_interval="2"
             rtp_stats="true"
@@ -272,7 +225,7 @@ DISCONNECTED
         caller="+15147371787@fakecustomer.xyz"
         callee="+911@edgeproxy1"
         transport="udp"
-        username="20255655"
+        auth_username="20255655"
         password="qntzhpbl"
         realm="sip.flowroute.com"
         rtp_stats="true"
@@ -382,7 +335,7 @@ DISCONNECTED
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | code | int | SIP cause code to return must be > `100` and < `700` |
 | expected_cause_code | int | SIP cause to be expected from caller side as a call result. Value 487 could be combined with  `fail_on_accept` parameter |
-| account | string | Account will be used if it matches the user part of an incoming call RURI or `default` will catch all |
+| match_account | string | Account will be used to receive this call (made via `register`) falling back to match the user part of an incoming call RURI or `default` will catch all |
 | response_delay | int | ms delay before reponse is sent, useful to test timeouts and race conditions |
 | call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |
 | transport | string | Force a specific transport for all messages on accepted calls, default to all transport available |
@@ -407,6 +360,8 @@ DISCONNECTED
 | from | string | From header complete `"Display Name" <sip:test at 127.0.0.1>`  |
 | callee | string | request URI `user@host` (also used in the To header unless to_uri is specified) |
 | to_uri | string | used@host part of the URI in the To header |
+| auth_username | string | authentication username on INVITE |
+| password | string | password used on INVITE |
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
 | play | string | path to file to play upon answer |
 | play_dtmf | string | list of DTMF symbols to be sent upon answer |
@@ -426,8 +381,10 @@ DISCONNECTED
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | proxy | string | ip/hostname of a proxy where to send the register |
-| username | string | authentication username, account name, From/To/Contact header user part |
-| account | string | if not specified username is used, this is the the account name and From/To/Contact header user part |
+| username | string | AOR username - From/To/Contact header user part |
+| auth_username | string | authentication username, account name, From/To/Contact header user part. If not specified, `username` is used |
+| password | string | account password |
+| account | string | if not specified username is used. Internal identifier, also used in `match_account` in `accept` action |
 | registrar | string | SIP UAS handling registration where the messages will be sent |
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
 | realm | string | realm use for authentication |

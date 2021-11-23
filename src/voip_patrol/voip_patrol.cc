@@ -534,13 +534,15 @@ TestAccount::~TestAccount() {
 void TestAccount::onRegState(OnRegStateParam &prm) {
 	AccountInfo ai = getInfo();
 	LOG(logINFO) << (ai.regIsActive? "[Register] code:" : "[Unregister] code:") << prm.code ;
-	if (!ai.regIsActive && prm.code == 200) unregistering = false;
+	if (!ai.regIsActive && prm.code == 200) {
+		unregistering = false;
+	}
 	if (test) {
-		if ( prm.rdata.pjRxData && prm.code != 408 && prm.code != PJSIP_SC_SERVICE_UNAVAILABLE) {
+		if (prm.rdata.pjRxData && prm.code != 408 && prm.code != PJSIP_SC_SERVICE_UNAVAILABLE) {
 			pjsip_rx_data *pjsip_data = (pjsip_rx_data *) prm.rdata.pjRxData;
 			test->transport = pjsip_data->tp_info.transport->type_name;
 		}
-		std::string res = "registration[" + std::to_string(prm.code) + "] reason["+ prm.reason + "] expiration[" + std::to_string(prm.expiration) +"]";
+		std::string res = "registration[" + std::to_string(prm.code) + "] reason[" + prm.reason + "] expiration[" + std::to_string(prm.expiration) + "]";
 		test->result_cause_code = (int)prm.code;
 		test->reason = prm.reason;
 		test->update_result();
@@ -561,11 +563,15 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 
 	LOG(logINFO) <<__FUNCTION__<<":"<<" ["<< acc_inf.uri <<"]["<<call->getId()<<"]from["<<ci.remoteUri<<"]to["<<ci.localUri<<"]id["<<ci.callIdString<<"]";
 	if (!call->test) {
+		LOG(logINFO)<<__FUNCTION__<<" Creating new accept test";
+
 		if (expected_cause_code < 100 || expected_cause_code > 700) {
 			expected_cause_code = 200;
 		}
 		string type("accept");
+
 		LOG(logINFO)<<__FUNCTION__<<": max call duration["<< hangup_duration <<"]";
+
 		call->test = new Test(config, type);
 		call->test->checks = checks;
 		call->test->hangup_duration = hangup_duration;
@@ -575,6 +581,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->expected_cause_code = expected_cause_code;
 		call->test->cancel_behavoir = cancel_behavoir;
 		call->test->fail_on_accept = fail_on_accept;
+
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
 
 		call->test->local_user = ci.localUri;
@@ -587,13 +594,17 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->peer_socket = iprm.rdata.srcAddress;
 		call->test->state = VPT_RUN_WAIT;
 		call->test->rtp_stats = rtp_stats = true;
+
 		LOG(logINFO) <<__FUNCTION__<<": rtp_stats:" << rtp_stats;
+
 		call->test->late_start = late_start;
 		call->test->force_contact = force_contact;
 		call->test->code = (pjsip_status_code) code;
 		call->test->reason = reason;
 		call->test->play = play;
+
 		LOG(logINFO) <<__FUNCTION__<<": play file:" << play;
+
 		if (wait_state != INV_STATE_NULL)
 			call->test->state = VPT_RUN_WAIT;
 
@@ -608,7 +619,8 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 
 	config->calls.push_back(call);
 
-	LOG(logINFO) <<__FUNCTION__<<"code:" << code <<" reason:"<< reason;
+	LOG(logINFO) << __FUNCTION__ << "code:" << code << " reason:" << reason;
+
 	if (code  >= 100 && code <= 699) {
 		prm.statusCode = (pjsip_status_code) code;
 	} else {
@@ -621,10 +633,11 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 
 	if (ring_duration > 0) {
 			prm.statusCode = PJSIP_SC_RINGING;
-			if (early_media)
+			if (early_media) {
 				prm.statusCode = PJSIP_SC_PROGRESS;
-	} else {
-		if (reason.size() > 0) prm.reason = reason;
+			}
+	} else if (reason.size() > 0) {
+		prm.reason = reason;
 	}
 	call->answer(prm);
 }
@@ -948,29 +961,40 @@ TestAccount* Config::createAccount(AccountConfig acc_cfg) {
 	accounts.push_back(account);
 	account->config = this;
 	acc_cfg.mediaConfig.transportConfig.port = rtp_cfg.port;
-	LOG(logINFO) <<__FUNCTION__<<" rtp start port:"<< rtp_cfg.port;
+	LOG(logINFO) << __FUNCTION__ << " rtp start port:"<< rtp_cfg.port;
 	acc_cfg.mediaConfig.transportConfig.boundAddress = ip_cfg.bound_address;
 	acc_cfg.mediaConfig.transportConfig.publicAddress = ip_cfg.public_address;
 	if (ip_cfg.public_address != "")
 		acc_cfg.natConfig.sipStunUse = PJSUA_STUN_USE_DISABLED;
 	account->create(acc_cfg);
 	AccountInfo acc_inf = account->getInfo();
-	LOG(logINFO) <<__FUNCTION__<< ": ["<< acc_inf.id << "]["<<acc_inf.uri<<"]";
+	LOG(logINFO) << __FUNCTION__<< ": ["<< acc_inf.id << "]["<<acc_inf.uri<<"]";
 	account->play = default_playback_file;
 	return account;
 }
 
 TestAccount* Config::findAccount(std::string account_name) {
-	if (account_name.compare(0, 1, "+") == 0)
+	for (auto account : accounts) {
+		LOG(logINFO) << __FUNCTION__ << ": name [" << account->account_name << "]<>[" << account_name << "]";
+		if (account_name == account->account_name) {
+			LOG(logINFO) << __FUNCTION__ << ": found account based on name: " << account_name;
+
+			return account;
+		}
+	}
+	LOG(logINFO) << __FUNCTION__ << ": falling back to URI search";
+	if (account_name.compare(0, 1, "+") == 0) {
 		account_name.erase(0,1);
+	}
 	for (auto account : accounts) {
 		AccountInfo acc_inf = account->getInfo();
 		int proto_length = 4; // "sip:"
-		if (acc_inf.uri.compare(0, 4, "sips") == 0)
+		if (acc_inf.uri.compare(0, 4, "sips") == 0) {
 			proto_length = 5;
-		LOG(logINFO) <<__FUNCTION__<< ": [searching account]["<< acc_inf.id << "]["<<acc_inf.uri<<"]["<<acc_inf.uri.substr(proto_length)<<"]<>["<<account_name<<"]";
+		}
+		LOG(logINFO) << __FUNCTION__ << ": [searching account]["<< acc_inf.id << "]["<<acc_inf.uri<<"]["<<acc_inf.uri.substr(proto_length)<<"]<>["<<account_name<<"]";
 		if (acc_inf.uri.compare(proto_length, account_name.length(), account_name) == 0) {
-			LOG(logINFO) <<__FUNCTION__<< ": found account id["<< acc_inf.id <<"] uri[" << acc_inf.uri <<"]";
+			LOG(logINFO) << __FUNCTION__ << ": found account id["<< acc_inf.id <<"] uri[" << acc_inf.uri <<"]";
 			return account;
 		}
 	}
@@ -1181,20 +1205,47 @@ size_t Alert::payload_source(void *ptr, size_t size, size_t nmemb, void *userp) 
 */
 
 void VoipPatrolEnpoint::onSelectAccount(OnSelectAccountParam &param) {
-	LOG(logDEBUG) <<__FUNCTION__<<" account_index:" << param.accountIndex << "\n" << param.rdata.wholeMsg ;
-	pjsip_rx_data *pjsip_data = (pjsip_rx_data *) param.rdata.pjRxData;
-	pjsip_to_hdr* to_hdr = (pjsip_to_hdr*) pjsip_msg_find_hdr(pjsip_data->msg_info.msg, PJSIP_H_TO, NULL);
-	const pjsip_sip_uri* sip_uri = (pjsip_sip_uri*) pjsip_uri_get_uri(to_hdr->uri);
-	std::string to(sip_uri->user.ptr, sip_uri->user.slen);
-	LOG(logINFO) <<__FUNCTION__<<" to:" << to ;
+	LOG(logDEBUG) <<__FUNCTION__<<" account_index:" << param.accountIndex << "\n" << param.rdata.wholeMsg;
+
+	pjsip_rx_data* pjsip_data = (pjsip_rx_data *) param.rdata.pjRxData;
+
+
+	pjsip_uri* request_line = pjsip_data->msg_info.msg->line.req.uri;
+	if (!PJSIP_URI_SCHEME_IS_SIP(request_line)) {
+		LOG(logERROR) << __FUNCTION__ << " Request scheme is not SIP!";
+		return;
+	}
+
+	std::string to;
+
+	// Check if we have vp_acc parameter in RURI
+	char param_account_name[] = "vp_acc";
+	pj_str_t param_account_pj_str = pj_str(param_account_name);
+	pjsip_param* is_account = pjsip_param_find(&((pjsip_sip_uri*) request_line)->other_param, &param_account_pj_str);
+
+	if (is_account != NULL) {
+		std::string tmp_str(is_account->value.ptr, is_account->value.slen);
+		to = tmp_str;
+
+		LOG(logINFO) << __FUNCTION__ << " VOLTS account is found:" << to;
+	} else {
+		pjsip_to_hdr* to_hdr = (pjsip_to_hdr*) pjsip_msg_find_hdr(pjsip_data->msg_info.msg, PJSIP_H_TO, NULL);
+		const pjsip_sip_uri* sip_uri = (pjsip_sip_uri*) pjsip_uri_get_uri(to_hdr->uri);
+		std::string tmp_str(sip_uri->user.ptr, sip_uri->user.slen);
+		to = tmp_str;
+
+		LOG(logINFO) << __FUNCTION__ << " using To header:" << to ;
+	}
 
 	TestAccount* account = config->findAccount(to);
 	if (!account) {
 		account = config->findAccount("default");
 	}
-	if (!account) return;
+	if (!account) {
+		return;
+	}
 	if (account->response_delay > 0) {
-		LOG(logINFO) <<__FUNCTION__<<" account_index:" << param.accountIndex << " response_delay:" << account->response_delay ;
+		LOG(logINFO) << __FUNCTION__ << " account_index:" << param.accountIndex << " response_delay:" << account->response_delay ;
 		pj_thread_sleep(account->response_delay);
 	}
 	AccountInfo acc_info = account->getInfo();

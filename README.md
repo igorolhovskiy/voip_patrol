@@ -336,7 +336,7 @@ DISCONNECTED
 | code | int | SIP cause code to return must be > `100` and < `700` |
 | expected_cause_code | int | SIP cause to be expected from caller side as a call result. Value 487 could be combined with  `fail_on_accept` parameter |
 | match_account | string | Account will be used to receive this call (made via `register`) falling back to match the user part of an incoming call RURI or `default` will catch all |
-| response_delay | int | ms delay before reponse is sent, useful to test timeouts and race conditions |
+| response_delay | int | delay before 100 reponse is sent in seconds, useful to test timeouts and race conditions |
 | call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |
 | transport | string | Force a specific transport for all messages on accepted calls, default to all transport available |
 | play | string | path to file to play upon answer |

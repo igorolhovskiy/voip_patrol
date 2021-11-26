@@ -196,6 +196,8 @@ class Test {
 		int expected_duration{0};
 		int max_duration{0};
 		int ring_duration{0};
+		int response_delay{0};
+		bool early_media {false};
 		int rtp_stats_count{0};
 		int max_ring_duration{0};
 		void get_mos();

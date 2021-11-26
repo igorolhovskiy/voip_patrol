@@ -417,8 +417,9 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 	LOG(logDEBUG) <<__FUNCTION__;
 	CallInfo ci = getInfo();
 
-	if (disconnecting == true && ci.state != PJSIP_INV_STATE_DISCONNECTED)
+	if (disconnecting == true && ci.state != PJSIP_INV_STATE_DISCONNECTED) {
 		return;
+	}
 
 	int uri_prefix = 3; // sip:
 	std::string remote_user("");
@@ -523,6 +524,8 @@ TestAccount::TestAccount() {
 	hangup_duration = 0;
 	max_duration = 0;
 	ring_duration = 0;
+	early_media = false;
+	response_delay = 0;
 	call_count = -1;
 	accept_label = "default";
 }
@@ -577,6 +580,8 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->hangup_duration = hangup_duration;
 		call->test->max_duration = max_duration;
 		call->test->ring_duration = ring_duration;
+		call->test->early_media = early_media;
+		call->test->response_delay = response_delay;
 		call->test->re_invite_interval = re_invite_interval;
 		call->test->expected_cause_code = expected_cause_code;
 		call->test->cancel_behavoir = cancel_behavoir;
@@ -619,16 +624,28 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 
 	config->calls.push_back(call);
 
-	LOG(logINFO) << __FUNCTION__ << "code:" << code << " reason:" << reason;
+	for (auto x_hdr : x_headers) {
+		prm.txOption.headers.push_back(x_hdr);
+	}
+
+	if (response_delay > 0) {
+		LOG(logINFO) << __FUNCTION__ << ": Not answering to the call due to response delay: " << response_delay;
+
+		return;
+	}
+
+	// Explicitly answer with 100
+	CallOpParam prm_100;
+
+	prm_100.statusCode = PJSIP_SC_TRYING;
+	call->answer(prm_100);
+
+	LOG(logINFO) << __FUNCTION__ << " code:" << code << " reason:" << reason;
 
 	if (code  >= 100 && code <= 699) {
 		prm.statusCode = (pjsip_status_code) code;
 	} else {
 		prm.statusCode = PJSIP_SC_OK;
-	}
-
-	for (auto x_hdr : x_headers) {
-		prm.txOption.headers.push_back(x_hdr);
 	}
 
 	if (ring_duration > 0) {
@@ -1208,11 +1225,11 @@ void VoipPatrolEnpoint::onSelectAccount(OnSelectAccountParam &param) {
 	LOG(logDEBUG) <<__FUNCTION__<<" account_index:" << param.accountIndex << "\n" << param.rdata.wholeMsg;
 
 	pjsip_rx_data* pjsip_data = (pjsip_rx_data *) param.rdata.pjRxData;
-
-
 	pjsip_uri* request_line = pjsip_data->msg_info.msg->line.req.uri;
+
 	if (!PJSIP_URI_SCHEME_IS_SIP(request_line)) {
 		LOG(logERROR) << __FUNCTION__ << " Request scheme is not SIP!";
+
 		return;
 	}
 
@@ -1244,10 +1261,11 @@ void VoipPatrolEnpoint::onSelectAccount(OnSelectAccountParam &param) {
 	if (!account) {
 		return;
 	}
-	if (account->response_delay > 0) {
-		LOG(logINFO) << __FUNCTION__ << " account_index:" << param.accountIndex << " response_delay:" << account->response_delay ;
-		pj_thread_sleep(account->response_delay);
-	}
+	LOG(logINFO) << __FUNCTION__ << " account_index:" << param.accountIndex << " response_delay:" << account->response_delay << " ring_duration:" << account->ring_duration;
+	// if (account->response_delay > 0) {
+	// 	LOG(logINFO) << __FUNCTION__ << " account_index:" << param.accountIndex << " response_delay:" << account->response_delay ;
+	// 	pj_thread_sleep(account->response_delay);
+	// }
 	AccountInfo acc_info = account->getInfo();
 	param.accountIndex = acc_info.id;
 }

@@ -884,9 +884,9 @@ void Action::do_wait(vector<ActionParam> &params) {
 			} else if (call->test) {
 				CallInfo ci = call->getInfo();
 				if (status_update) {
-					LOG(logDEBUG) << __FUNCTION__ << ": [call]["<<call->getId()<<"][test]["<<(ci.role==0?"CALLER":"CALLEE")<<"]["
-						     << ci.callIdString <<"]["<<ci.remoteUri<<"]["<<ci.stateText<<"|"<<ci.state<<"]duration["
-						     << ci.connectDuration.sec <<">="<<call->test->hangup_duration<<"]";
+					LOG(logDEBUG) << __FUNCTION__ << ": [call][" << call->getId() << "][test][" << (ci.role==0?"CALLER":"CALLEE") << "]["
+						     << ci.callIdString << "][" << ci.remoteUri << "][" << ci.stateText << "|" << ci.state << "]duration["
+						     << ci.connectDuration.sec << ">=" << call->test->hangup_duration<< "]";
 				}
 				if (ci.state == PJSIP_INV_STATE_CALLING || ci.state == PJSIP_INV_STATE_EARLY || ci.state == PJSIP_INV_STATE_INCOMING)  {
 					Test *test = call->test;
@@ -905,8 +905,6 @@ void Action::do_wait(vector<ActionParam> &params) {
 								prm.statusCode = PJSIP_SC_PROGRESS;
 							}
 
-							LOG(logINFO) << " Answering call["<<call->getId()<<"] with 1xx " << prm.statusCode << " on call time: " << ci.totalDuration.sec;
-
 							call->answer(prm);
 						} else {
 							prm.reason = "OK";
@@ -917,6 +915,8 @@ void Action::do_wait(vector<ActionParam> &params) {
 							}
 							call->answer(prm);
 						}
+						LOG(logINFO) << " Answering call[" << call->getId() << "] with " << prm.statusCode << " on call time: " << ci.totalDuration.sec;
+
 					} else if (test->ring_duration > 0 && ci.totalDuration.sec >= (test->ring_duration + test->response_delay)) {
 						CallOpParam prm;
 						prm.reason = "OK";
@@ -927,22 +927,24 @@ void Action::do_wait(vector<ActionParam> &params) {
 							prm.statusCode = PJSIP_SC_OK;
 						}
 
-						LOG(logINFO) << " Answering call["<<call->getId()<<"] with " << test->code << " on call time: " << ci.totalDuration.sec;
+						LOG(logINFO) << " Answering call[" << call->getId() << "] with " << test->code << " on call time: " << ci.totalDuration.sec;
 
 						call->answer(prm);
-					} else if (test->max_ring_duration && test->max_ring_duration <= ci.totalDuration.sec) {
-						LOG(logINFO) << __FUNCTION__ << "[cancelling:call]["<<call->getId()<<"][test]["<<(ci.role==0?"CALLER":"CALLEE")<<"]["
-						     << ci.callIdString <<"]["<<ci.remoteUri<<"]["<<ci.stateText<<"|"<<ci.state<<"]duration["
-						     << ci.totalDuration.sec <<">="<<test->max_ring_duration<<"]";
+					} else if (test->max_ring_duration && (test->max_ring_duration + test->response_delay) <= ci.totalDuration.sec) {
+						LOG(logINFO) << __FUNCTION__ << "[cancelling:call][" << call->getId() << "][test][" << (ci.role==0?"CALLER":"CALLEE") << "]["
+						     << ci.callIdString << "][" << ci.remoteUri << "][" << ci.stateText << "|" << ci.state << "]duration["
+						     << ci.totalDuration.sec << ">=(" << test->max_ring_duration << " + " << test->response_delay << ")]";
 						CallOpParam prm(true);
 						try {
 							call->hangup(prm);
 						} catch (pj::Error e)  {
-							if (e.status != 171140) LOG(logERROR) << __FUNCTION__ << " error :" << e.status;
+							if (e.status != 171140) {
+								LOG(logERROR) << __FUNCTION__ << " error :" << e.status;
+							}
 						}
 					}
 				} else if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
-					std::string res = "call[" + std::to_string(ci.lastStatusCode) + "] reason["+ ci.lastReason +"]";
+					std::string res = "call[" + std::to_string(ci.lastStatusCode) + "] reason[" + ci.lastReason + "]";
 					call->test->connect_duration = ci.connectDuration.sec;
 					call->test->setup_duration = ci.totalDuration.sec - ci.connectDuration.sec;
 					call->test->result_cause_code = (int)ci.lastStatusCode;
@@ -958,7 +960,9 @@ void Action::do_wait(vector<ActionParam> &params) {
 								call->reinvite(prm);
 								call->test->re_invite_next = call->test->re_invite_next + call->test->re_invite_interval;
 							} catch (pj::Error e)  {
-								if (e.status != 171140) LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+								if (e.status != 171140) {
+									LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+								}
 							}
 						}
 					}
@@ -970,7 +974,9 @@ void Action::do_wait(vector<ActionParam> &params) {
 							try {
 								call->hangup(prm);
 							} catch (pj::Error e)  {
-								if (e.status != 171140) LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+								if (e.status != 171140) {
+									LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+								}
 							}
 						}
 						call->test->update_result();

@@ -744,7 +744,7 @@ void Test::update_result() {
 	} else if (mos < min_mos) {
 		res_text = "MOS is too low";
 	} else if (expected_cause_code == result_cause_code) {
-		res_text = "Call accepted";
+		res_text = "Main test passed";
 		res = "PASS";
 		success = true;
 	}

@@ -86,7 +86,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 </config>
 ```
 
-### Example: accepting calls and checking for specific header
+### Example: accepting calls and checking for specific header with exact match or regular expression
 ```xml
 <config>
   <actions>
@@ -97,6 +97,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
     >
         <check-header name="Min-SE"/>
         <check-header name="X-Foo" value="Bar"/>
+        <check-header name="From" regex="^.*<sip:\+1234@example\.com>"/>
     </action>
     <action type="wait" ms="-1"/>
   </actions>

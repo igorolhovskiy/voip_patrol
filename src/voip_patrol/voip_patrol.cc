@@ -410,7 +410,9 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 			LOG(logINFO) <<__FUNCTION__<<": "+ pj2Str(pjsip_rxdata->msg_info.msg->line.req.method.name);
 			std::string message;
 			message.append(pjsip_rxdata->msg_info.msg_buf, pjsip_rxdata->msg_info.len);
-			if (test) check_checks(test->checks, pjsip_rxdata->msg_info.msg, message);
+			if (test) {
+				check_checks(test->checks, pjsip_rxdata->msg_info.msg, message);
+			}
 		}
 	}
 
@@ -437,8 +439,9 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 	test->local_contact = ci.localContact;
 	pos = ci.remoteUri.find("@");
 	uri_prefix = 3;
-	if (ci.remoteUri[0] != '<')
+	if (ci.remoteUri[0] != '<') {
 		uri_prefix++;
+	}
 	if (pos!=std::string::npos) {
 		remote_user = ci.remoteUri.substr(uri_prefix, pos - uri_prefix);
 	}
@@ -718,10 +721,10 @@ void Test::update_result() {
 	}
 	std::lock_guard<std::mutex> lock(process_result);
 	if (completed) {
-		LOG(logINFO)<<__FUNCTION__<<"["<<this<<"]"<<" already completed\n";
+		LOG(logINFO) << __FUNCTION__ << "["<<this<<"]" << " already completed\n";
 		return;
 	}
-	LOG(logINFO)<<__FUNCTION__<<"["<<this<<"]"<<"  completing\n";
+	LOG(logINFO) <<__FUNCTION__<< "[" << this << "]" << " completing...\n";
 	completed = true;
 
 	if (fail_on_accept && type == "accept") {
@@ -741,7 +744,7 @@ void Test::update_result() {
 	} else if (mos < min_mos) {
 		res_text = "MOS is too low";
 	} else if (expected_cause_code == result_cause_code) {
-		res_text = "Test passed";
+		res_text = "Call accepted";
 		res = "PASS";
 		success = true;
 	}
@@ -771,6 +774,37 @@ void Test::update_result() {
 	jsonify(&jsonReason);
 
 	config->json_result_count += 1;
+
+	string result_checks_json {};
+	int x {0};
+
+	for (auto check : checks) {
+		LOG(logINFO) << __FUNCTION__ << " check header[" << check.hdr.hName << "] result[" << check.result << "]";
+		if (!check.result && !fail_on_accept) {
+			res = "FAIL";
+			res_text += "(Header " + check.hdr.hName + " failed)";
+		}
+
+		if (x > 0) {
+			result_checks_json += ",";
+		}
+		string result = check.result ? "PASS": "FAIL";
+
+		result_checks_json += "\"" + to_string(x) + "\":{";
+		if (check.regex.empty()) {
+			result_checks_json += "\"header_name\": \"" + check.hdr.hName + "\", "
+						"\"header_value\": \"" + check.hdr.hValue + "\", ";
+		} else {
+			string json_val {check.regex};
+			jsonify(&json_val);
+			result_checks_json += "\"method\": \"" + check.method + "\", "
+						"\"regex\": \"" + json_val + "\", ";
+		}
+		result_checks_json += "\"result\": \"" + result + "\"}";
+		x++;
+	}
+
+
 	std::string result_line_json = "{\""+std::to_string(config->json_result_count)+ "/" + std::to_string(config->total_tasks_count) + "\": {"
 						"\"label\": \"" + label + "\", "
 						"\"start\": \"" + start_time + "\", "
@@ -803,26 +837,7 @@ void Test::update_result() {
 						"\"remote_contact\": \""+jsonRemoteContact+"\" "
 						"}";
 
-	string result_checks_json {};
-	int x {0};
-	for (auto check : checks) {
-		LOG(logINFO)<<__FUNCTION__<<"check header["<< check.hdr.hName <<"] result["<< check.result <<"]";
-		if (x>0) result_checks_json += ",";
-		string result = check.result ? "PASS": "FAIL";
 
-		result_checks_json += "\""+to_string(x)+"\":{";
-		if (check.regex.empty()) {
-			result_checks_json += "\"header_name\": \""+check.hdr.hName+"\", "
-						"\"header_value\": \""+check.hdr.hValue+"\", ";
-		} else {
-			string json_val {check.regex};
-			jsonify(&json_val);
-			result_checks_json += "\"method\": \""+check.method+"\", "
-						"\"regex\": \""+json_val+"\", ";
-		}
-		result_checks_json += "\"result\": \""+ result +"\"}";
-		x++;
-	}
 	if (!result_checks_json.empty())
 		result_line_json += ", \"check\":{" + result_checks_json + "}";
 
@@ -1096,13 +1111,24 @@ replay:
 				}
 				check.hdr.hName = val;
 				val = ezxml_attr(xml_check, "value");
-				if (val) check.hdr.hValue = val;
-				LOG(logINFO) <<__FUNCTION__<<" check-header:"<< check.hdr.hName<<" "<<check.hdr.hValue;
+				if (val) {
+					check.hdr.hValue = val;
+				} else {
+					val = ezxml_attr(xml_check, "regex");
+					if (val) {
+						std::string tmp_val;
+						tmp_val.assign(val);
+						check.hdr.hValue = "regex/" + tmp_val;
+					}
+				}
+				LOG(logINFO) <<__FUNCTION__<< " check-header:" << check.hdr.hName << " " << check.hdr.hValue;
 				checks.push_back(check);
 			}
 			string action_type = ezxml_attr(xml_action,"type");;
 			LOG(logINFO) <<__FUNCTION__<< " ===> action/" << action_type;
-			if (action_type == "replay") goto replay;
+			if (action_type == "replay") {
+				goto replay;
+			}
 			vector<ActionParam> params = action.get_params(action_type);
 			if (params.size() == 0) {
 				LOG(logERROR) <<__FUNCTION__<< ": params not found for action:" << action_type << std::endl;

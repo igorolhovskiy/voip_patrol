@@ -27,13 +27,13 @@ bool check_regex(string m, string e) {
 	std::regex re(e);
 	while (std::getline(ss, line)) {
 		line.pop_back();
-		LOG(logINFO) <<__FUNCTION__<<">>> "<< line;
+		LOG(logINFO) << __FUNCTION__ << ">>> " << line;
 		if (std::regex_match(line, re)) {
-			LOG(logINFO) <<__FUNCTION__<<": matching ! ["<<e<<"]";
+			LOG(logINFO) << __FUNCTION__ << ": matching ! [" << e << "]";
 			return true;
 		}
 	}
-	LOG(logINFO) <<__FUNCTION__<<": not matching ! ["<<e<<"]";
+	LOG(logINFO) << __FUNCTION__ << ": not matching ! [" << e << "]";
 	return false;
 }
 
@@ -42,7 +42,7 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, string message) {
 	std::string method = pj2Str(msg->line.req.method.name);
 	LOG(logINFO) << __FUNCTION__ << ": " + method;
 	// action checks for headers
-	for (vector<ActionCheck> :: iterator check = checks.begin(); check != checks.end(); ++check){
+	for (vector<ActionCheck> :: iterator check = checks.begin(); check != checks.end(); ++check) {
 		if (!check->regex.empty()) {
 			if (method != check->method) {
 				continue;
@@ -58,7 +58,7 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, string message) {
 		if (check->hdr.hName == "") {
 			continue;
 		}
-		LOG(logINFO) << __FUNCTION__ << " check-header:"<< check->hdr.hName<<" "<<check->hdr.hValue;
+		LOG(logINFO) << __FUNCTION__ << " check-header:" << check->hdr.hName << " " << check->hdr.hValue;
 		pj_str_t header_name;
 		header_name.slen = strlen(check->hdr.hName.c_str());
 		header_name.ptr = (char*) check->hdr.hName.c_str();
@@ -67,12 +67,24 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, string message) {
 		if (s_hdr) {
 			SipHeader SHdr;
 			SHdr.fromPj(s_hdr);
+
 			if (check->hdr.hValue == "" || check->hdr.hValue == SHdr.hValue) {
 				LOG(logINFO) << __FUNCTION__ << " header found and value is matching:" << SHdr.hName << " " << SHdr.hValue;
 				check->result = true;
 			} else {
-				LOG(logINFO) << __FUNCTION__ << " header found and value is not matching:" << SHdr.hName << " " << SHdr.hValue;
+				// Check if we have regex in pattern
+				if (check->hdr.hValue.length() >= 6 && check->hdr.hValue.substr(0,6) == "regex/") {
+					std::string header_value_regex = check->hdr.hValue.substr(6);
+
+					if (check_regex(SHdr.hValue, header_value_regex)) {
+						LOG(logINFO) << __FUNCTION__ << " header found and value is matching in regex style:" << SHdr.hName << " " << SHdr.hValue << " =~ " << header_value_regex;
+						check->result = true;
+						continue;
+					}
+				}
+				LOG(logINFO) << __FUNCTION__ << " header found and value is not matching:" << SHdr.hName << " " << SHdr.hValue << " != " << check->hdr.hValue;
 			}
+
 		} else {
 			LOG(logINFO) << __FUNCTION__ << " header not found";
 		}

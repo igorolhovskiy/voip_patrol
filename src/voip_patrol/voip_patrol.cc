@@ -792,8 +792,15 @@ void Test::update_result() {
 
 		result_checks_json += "\"" + to_string(x) + "\":{";
 		if (check.regex.empty()) {
-			result_checks_json += "\"header_name\": \"" + check.hdr.hName + "\", "
+			if (check.hdr.hValue.substr(0,6) == "regex/") {
+				std::string json_val = check.hdr.hValue.substr(6);
+				jsonify(&json_val);
+				result_checks_json += "\"header_name\": \"" + check.hdr.hName + "\", "
+						"\"regex\": \"" + json_val + "\", ";
+			} else {
+				result_checks_json += "\"header_name\": \"" + check.hdr.hName + "\", "
 						"\"header_value\": \"" + check.hdr.hValue + "\", ";
+			}
 		} else {
 			string json_val {check.regex};
 			jsonify(&json_val);

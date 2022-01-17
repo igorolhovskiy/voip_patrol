@@ -385,7 +385,9 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 			return;
 		}
 		test->rtp_stats_ready = true;
-		test->update_result();
+		// Commented out as on onStreamDestroyed we're filling only RTP stats.
+		// Problem could be on 183 - 4xx sequences, where RTP stream destroyed on 183, but real result is 4xx.
+		//test->update_result();
 	} catch (pj::Error e)  {
 			LOG(logERROR) <<__FUNCTION__<<" error :" << e.status << std::endl;
 	}

@@ -21,6 +21,23 @@
 #include "util.hh"
 #include "string.h"
 
+void filter_accountname(std::string *str) {
+	size_t index = 0;
+	while (true) {
+		index = str->find("@", index);
+		if (index == std::string::npos) break;
+		str->replace(index, 1, "_");
+		index += 1;
+	}
+	index = 0;
+	while (true) {
+		index = str->find(";", index);
+		if (index == std::string::npos) break;
+		str->replace(index, 1, "-");
+		index += 1;
+	}
+}
+
 Action::Action(Config *cfg) : config{cfg} {
 	init_actions_params();
 	std::cout<<"Prepared for Action!\n";
@@ -269,15 +286,21 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 	}
 
-	if (username.empty() || realm.empty() || password.empty() || registrar.empty()) {
+	if (username.empty() || password.empty() || registrar.empty()) {
 		LOG(logERROR) << __FUNCTION__ << " missing action parameter" ;
 		return;
 	}
 	vp::tolower(transport);
 
+
+	if (realm.empty()) {
+		realm = "*";
+	}
 	if (account_name.empty()) {
 		account_name = username;
 	}
+	filter_accountname(&account_name);
+
 	if (auth_username.empty()) {
 		auth_username = username;
 	}
@@ -475,6 +498,8 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 
 		return;
 	}
+	filter_accountname(&account_name);
+
 	vp::tolower(transport);
 
 	TestAccount *acc = config->findAccount(account_name);
@@ -700,17 +725,16 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 			acc_cfg.idUri = from;
 		}
 
-		if (!realm.empty()) {
-			if ((username.empty() && auth_username.empty()) || password.empty()) {
-				if (username.empty() && auth_username.empty()) {
-					LOG(logERROR) << __FUNCTION__ << ": realm specified missing username/auth_username";
-					return;
-				}
+		if (!username.empty() || !auth_username.empty()) {
+			if (password.empty()) {
 				LOG(logERROR) << __FUNCTION__ << ": realm specified missing password";
 				return;
 			}
 			if (auth_username.empty()) {
 				auth_username = username;
+			}
+			if (realm.empty()) {
+				realm = "*";
 			}
 			acc_cfg.sipConfig.authCreds.push_back( AuthCredInfo("digest", realm, auth_username, 0, password) );
 		}

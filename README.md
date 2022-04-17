@@ -363,6 +363,7 @@ DISCONNECTED
 | to_uri | string | used@host part of the URI in the To header |
 | auth_username | string | authentication username on INVITE |
 | password | string | password used on INVITE |
+| realm | string | realm use for authentication on INVITE. If empty - any auth realm is allowed |
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
 | play | string | path to file to play upon answer |
 | play_dtmf | string | list of DTMF symbols to be sent upon answer |
@@ -388,7 +389,7 @@ DISCONNECTED
 | account | string | if not specified username is used. Internal identifier, also used in `match_account` in `accept` action |
 | registrar | string | SIP UAS handling registration where the messages will be sent |
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
-| realm | string | realm use for authentication |
+| realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add "DTLS-SRTP" support, `force` - make SRTP mandatory. Used for incoming calls to this account |
 | unregister | bool | unregister the account `<usename@registrar;transport=x>` |
 | reg_id | int | if present outbound and other related parameters will be added (see [RFC5626](https://datatracker.ietf.org/doc/html/rfc5626)) |

@@ -131,6 +131,7 @@ void Action::init_actions_params() {
 	do_register_params.push_back(ActionParam("username", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("auth_username", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("account", false, APType::apt_string));
+	do_register_params.push_back(ActionParam("account_aor", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("password", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("unregister", false, APType::apt_bool));
 	do_register_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
@@ -275,6 +276,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 		else if (param.name.compare("proxy") == 0) proxy = param.s_val;
 		else if (param.name.compare("realm") == 0) realm = param.s_val;
 		else if (param.name.compare("account") == 0) account_name = param.s_val;
+		else if (param.name.compare("account_aor") == 0) account_aor = param.s_val;
 		else if (param.name.compare("username") == 0) username = param.s_val;
 		else if (param.name.compare("auth_username") == 0) auth_username = param.s_val;
 		else if (param.name.compare("password") == 0) password = param.s_val;
@@ -304,7 +306,9 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 	if (auth_username.empty()) {
 		auth_username = username;
 	}
-	account_aor = username + "@" + registrar;
+	if (account_aor.empty()) {
+		account_aor = username + "@" + registrar;
+	}
 	// This should be just internal identifier for program
 	account_full_name = account_name + "@" + registrar;
 

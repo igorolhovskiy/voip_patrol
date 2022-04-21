@@ -387,6 +387,7 @@ DISCONNECTED
 | auth_username | string | authentication username, account name, From/To/Contact header user part. If not specified, `username` is used |
 | password | string | account password |
 | account | string | if not specified username is used. Internal identifier, also used in `match_account` in `accept` action |
+| account_aor | string | Account Address Of Record. if not specified - `<usename@registrar>` |
 | registrar | string | SIP UAS handling registration where the messages will be sent |
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |

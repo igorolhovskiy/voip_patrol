@@ -1076,7 +1076,7 @@ void Action::do_wait(vector<ActionParam> &params) {
 		// calls, can now be destroyed
 		config->checking_calls.unlock();
 
-		if (tests_running > 0) {
+		if (tests_running > 0 && complete_all) {
 			if (status_update) {
 				LOG(logINFO) << __FUNCTION__ <<LOG_COLOR_ERROR<<": action[wait] active account tests or call tests in run_wait["<<tests_running<<"] <<<<"<<LOG_COLOR_END;
 				status_update = false;
@@ -1089,6 +1089,10 @@ void Action::do_wait(vector<ActionParam> &params) {
 
 			pj_thread_sleep(100);
 		} else {
+			if (status_update) {
+				LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] just wait for " << duration_ms <<  " ms " << LOG_COLOR_END;
+				status_update = false;
+			}
 			if (duration_ms > 0) {
 				duration_ms -= 10;
 				pj_thread_sleep(10);

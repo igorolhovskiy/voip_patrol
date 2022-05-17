@@ -1563,8 +1563,9 @@ int main(int argc, char **argv){
 		alert.send();
 
 		LOG(logINFO) <<__FUNCTION__<<": hangup all calls..." ;
-		if (config.graceful_shutdown) // make sure we terminate transactions, not sure why this was necessary
+		if (config.graceful_shutdown) { // make sure we terminate transactions, not sure why this was necessary
 			pj_thread_sleep(2000);
+		}
 
 		ret = PJ_SUCCESS;
 	} catch (Error &err) {
@@ -1577,14 +1578,15 @@ int main(int argc, char **argv){
 		disconnecting = false;
 		for (auto & call : config.calls) {
 			pjsua_call_info pj_ci;
-			pjsua_call_id call_id;
 			CallInfo ci;
 			if (call->is_disconnecting()) { // wait for call disconnections
-					if (call->test && call->test->completed) config.removeCall(call);
+					if (call->test && call->test->completed) {
+						config.removeCall(call);
+					}
 					disconnecting = true;
 					continue;
 			}
-			pj_status_t status = pjsua_call_get_info(call_id, &pj_ci);
+			pj_status_t status = pjsua_call_get_info(call->getId(), &pj_ci);
 			LOG(logINFO) << "disconnecting >>> call["<< call->getId() <<"]["<< call <<"] ";
 			if (status != PJ_SUCCESS) {
 				LOG(logINFO) << "can not get call info, removing call["<< call->getId() <<"]["<< call <<"] "<< config.removeCall(call);

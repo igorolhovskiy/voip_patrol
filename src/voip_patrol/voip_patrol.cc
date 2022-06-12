@@ -62,7 +62,8 @@ static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const c
 	pj_status_t status = PJ_SUCCESS;
 	// Create a player if none.
 	if (call->player_id < 0) {
-		char * fn = new char [call->test->play.length()+1];
+		LOG(logINFO) <<__FUNCTION__<< ": [stream_to_call] streaming file: " << call->test->play;
+		char *fn = new char [call->test->play.length()+1];
 		strcpy (fn, call->test->play.c_str());
 		const pj_str_t file_name = pj_str(fn);
 		status = pjsua_player_create(&file_name, 0, &call->player_id);
@@ -72,19 +73,23 @@ static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const c
 			return status;
 		}
 	}
-	LOG(logINFO) <<__FUNCTION__<<": connecting player_id["<<call->player_id<<"]";
+	LOG(logINFO) <<__FUNCTION__<< ": connecting player_id[" << call->player_id << "]";
+
 	status = pjsua_conf_connect(pjsua_player_get_conf_port(call->player_id), pjsua_call_get_conf_port(call_id));
-	LOG(logINFO) <<__FUNCTION__<<": player connected";
+	if (status != PJ_SUCCESS) {
+		LOG(logINFO) <<__FUNCTION__<<": [error] connecting player: " << status;
+	}
 	return status;
 }
 
 static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char *caller_contact) {
 	pj_status_t status = PJ_SUCCESS;
 	// Create a recorder if none.
+	LOG(logINFO) <<__FUNCTION__<<": [record_call] starting recording call:" << call_id;
 	if (call->recorder_id < 0) {
-		char rec_fn[1024] = "voice_ref_files/recording.wav";
+		char rec_fn[1024] = "/srv/recording.wav";
 		CallInfo ci = call->getInfo();
-		sprintf(rec_fn,"voice_files/%s_%s_rec.wav", ci.callIdString.c_str(), caller_contact);
+		sprintf(rec_fn, "/srv/%s_%s_rec.wav", ci.callIdString.c_str(), caller_contact);
 		call->test->record_fn = string(&rec_fn[0]);
 		const pj_str_t rec_file_name = pj_str(rec_fn);
 		status = pjsua_recorder_create(&rec_file_name, 0, NULL, -1, 0, &call->recorder_id);
@@ -92,9 +97,13 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 			LOG(logINFO) <<__FUNCTION__<<": [error] record_call:" << status << "\n";
 			return status;
 		}
-		LOG(logINFO) <<__FUNCTION__<<": [recorder] created:" << call->recorder_id << " fn:"<< rec_fn;
+		LOG(logINFO) <<__FUNCTION__<<": [recorder] created:" << call->recorder_id << " to file :"<< rec_fn;
 	}
+
 	status = pjsua_conf_connect(pjsua_call_get_conf_port(call_id), pjsua_recorder_get_conf_port(call->recorder_id));
+	if (status != PJ_SUCCESS) {
+		LOG(logINFO) <<__FUNCTION__<<": [error] connect status:" << status << "\n";
+	}
 	return status;
 }
 
@@ -487,16 +496,17 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 		}
 	}
 	// Create player and recorder
-	if (ci.state == PJSIP_INV_STATE_CONFIRMED){
-
+	if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
 		if (test->play_dtmf.length() > 0) {
 			dialDtmf(test->play_dtmf);
 			LOG(logINFO) <<__FUNCTION__<<": [dtmf]" << test->play_dtmf;
 		}
 
 		stream_to_call(this, ci.id, test->remote_user.c_str());
-		if (test->min_mos)
+
+		if (test->recording) {
 			record_call(this, ci.id, test->remote_user.c_str());
+		}
 	}
 	if (ci.state == PJSIP_INV_STATE_DISCONNECTED) {
 		std::string res = "code[" + std::to_string(ci.lastStatusCode) + "] reason["+ ci.lastReason +"]";
@@ -612,11 +622,13 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->code = (pjsip_status_code) code;
 		call->test->reason = reason;
 		call->test->play = play;
+		call->test->recording = recording;
 
 		LOG(logINFO) <<__FUNCTION__<<": play file:" << play;
 
-		if (wait_state != INV_STATE_NULL)
+		if (wait_state != INV_STATE_NULL) {
 			call->test->state = VPT_RUN_WAIT;
+		}
 
 		call->test->play_dtmf = play_dtmf;
 	}

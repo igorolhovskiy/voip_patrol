@@ -119,6 +119,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("cancel", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("re_invite_interval", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("play", false, APType::apt_string));
+	do_call_params.push_back(ActionParam("record", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("proxy", false, APType::apt_string));
@@ -156,6 +157,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("late_start", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("srtp", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("play", false, APType::apt_string));
+	do_accept_params.push_back(ActionParam("record", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("code", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("call_count", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("reason", false, APType::apt_string));
@@ -450,6 +452,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	string transport {};
 	string label {};
 	string play {default_playback_file};
+	bool recording {false};
 	string play_dtmf {};
 	string timer {};
 	string cancel_behavoir {};
@@ -474,6 +477,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 		if (param.name.compare("match_account") == 0) account_name = param.s_val;
 		else if (param.name.compare("transport") == 0) transport = param.s_val;
 		else if (param.name.compare("play") == 0 && param.s_val.length() > 0) play = param.s_val;
+		else if (param.name.compare("record") == 0) recording = param.b_val;
 		else if (param.name.compare("play_dtmf") == 0 && param.s_val.length() > 0) play_dtmf = param.s_val;
 		else if (param.name.compare("timer") == 0 && param.s_val.length() > 0) timer = param.s_val;
 		else if (param.name.compare("code") == 0) code = param.i_val;
@@ -583,6 +587,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	acc->rtp_stats = rtp_stats;
 	acc->late_start = late_start;
 	acc->play = play;
+	acc->recording = recording;
 	acc->play_dtmf = play_dtmf;
 	acc->timer = timer;
 	acc->early_media = early_media;
@@ -593,7 +598,6 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	acc->call_count = call_count;
 	acc->x_headers = x_headers;
 	acc->checks = checks;
-	acc->play = play;
 	acc->srtp = srtp;
 	acc->cancel_behavoir = cancel_behavoir;
 	acc->fail_on_accept	= fail_on_accept;
@@ -639,6 +643,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 		else if (param.name.compare("to_uri") == 0) to_uri = param.s_val;
 		else if (param.name.compare("transport") == 0) transport = param.s_val;
 		else if (param.name.compare("play") == 0 && param.s_val.length() > 0) play = param.s_val;
+		else if (param.name.compare("record") == 0) recording = param.b_val;
 		else if (param.name.compare("play_dtmf") == 0 && param.s_val.length() > 0) play_dtmf = param.s_val;
 		else if (param.name.compare("timer") == 0 && param.s_val.length() > 0) timer = param.s_val;
 		else if (param.name.compare("username") == 0) username = param.s_val;
@@ -660,7 +665,6 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("repeat") == 0) repeat = param.i_val;
-		else if (param.name.compare("recording") == 0) recording = true;
 	}
 
 	if (caller.empty() || callee.empty()) {

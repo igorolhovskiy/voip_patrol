@@ -164,7 +164,7 @@ typedef enum call_wait_state {
 call_state_t get_call_state_from_string (string state);
 string get_call_state_string (call_state_t state);
 
-const char default_playback_file[] = "voice_ref_files/reference_8000.wav";
+const char default_playback_file[] = "/voice_ref_files/8000.wav";
 
 typedef enum test_run_state {
 	VPT_RUN,              // test is running
@@ -182,7 +182,7 @@ class Test {
 		int expected_cause_code{-1};
 		pjsip_status_code code;
 		int result_cause_code{-1};
-		bool completed{false};
+		bool completed {false};
 		std::string start_time;
 		std::string end_time;
 		float min_mos{0.0};
@@ -194,15 +194,15 @@ class Test {
 		int connect_duration{0};
 		int hangup_duration{0};
 		int re_invite_next{0};
-		int re_invite_interval{0};
-		int setup_duration{0};
-		int expected_duration{0};
-		int max_duration{0};
-		int ring_duration{0};
-		int response_delay{0};
+		int re_invite_interval {0};
+		int setup_duration {0};
+		int expected_duration {0};
+		int max_duration {0};
+		int ring_duration {0};
+		int response_delay {0};
 		bool early_media {false};
-		int rtp_stats_count{0};
-		int max_ring_duration{0};
+		int rtp_stats_count {0};
+		int max_ring_duration {0};
 		void get_mos();
 		std::string local_user;
 		std::string local_uri;
@@ -211,18 +211,17 @@ class Test {
 		std::string remote_uri;
 		std::string remote_contact;
 		std::string call_direction;
-		std::string sip_call_id{""};
-		std::string label{"default"};
-		std::string accept_label{"accept_default"};
+		std::string sip_call_id {""};
+		std::string label {"default"};
+		std::string accept_label {"accept_default"};
 		std::string transport;
 		std::string peer_socket;
 		std::string dtmf_recv;
 		std::string cancel_behavoir {""};
-		call_state_t wait_state{INV_STATE_NULL};
-		test_state_t state{VPT_RUN};
-		int call_id{0};
-		bool recording{false};
-		bool playing{false};
+		call_state_t wait_state {INV_STATE_NULL};
+		test_state_t state {VPT_RUN};
+		int call_id {0};
+		bool recording {false};
 		std::string record_fn;
 		std::string reference_fn;
 		std::string rtp_stats_json;
@@ -231,7 +230,7 @@ class Test {
 		std::string srtp;
 		int call_count {-1};
 		bool rtp_stats_ready{false};
-		bool queued{false};
+		bool queued {false};
 		bool fail_on_accept {false};
 		vector<ActionCheck> checks;
 		Config *config;
@@ -262,6 +261,7 @@ class TestAccount : public Account {
 		std::string force_contact;
 		bool early_media {false};
 		bool fail_on_accept {false};
+		bool recording {false};
 		SipHeaderVector x_headers;
 		int call_count {-1};
 		std::string play;

@@ -82,16 +82,24 @@ static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const c
 	return status;
 }
 
-static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char *caller_contact) {
+static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char *caller_contact, const char *recording) {
 	pj_status_t status = PJ_SUCCESS;
 	// Create a recorder if none.
 	LOG(logINFO) <<__FUNCTION__<<": [record_call] starting recording call:" << call_id;
+
 	if (call->recorder_id < 0) {
-		char rec_fn[1024] = "/srv/recording.wav";
-		CallInfo ci = call->getInfo();
-		sprintf(rec_fn, "/srv/%s_%s_rec.wav", ci.callIdString.c_str(), caller_contact);
+		char rec_fn[1024] = "";
+		if (strcmp(recording, "auto") == 0) {
+			CallInfo ci = call->getInfo();
+			sprintf(rec_fn, "/srv/%s_%s_rec.wav", ci.callIdString.c_str(), caller_contact);
+		} else {
+			sprintf(rec_fn, "%s", recording);
+		}
 		call->test->record_fn = string(&rec_fn[0]);
 		const pj_str_t rec_file_name = pj_str(rec_fn);
+
+		LOG(logINFO) <<__FUNCTION__<<": [record_call] recording to file:" << rec_fn;
+
 		status = pjsua_recorder_create(&rec_file_name, 0, NULL, -1, 0, &call->recorder_id);
 		if (status != PJ_SUCCESS) {
 			LOG(logINFO) <<__FUNCTION__<<": [error] record_call:" << status << "\n";
@@ -504,8 +512,8 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 
 		stream_to_call(this, ci.id, test->remote_user.c_str());
 
-		if (test->recording) {
-			record_call(this, ci.id, test->remote_user.c_str());
+		if (test->recording.length() > 0) {
+			record_call(this, ci.id, test->remote_user.c_str(), test->recording.c_str());
 		}
 	}
 	if (ci.state == PJSIP_INV_STATE_DISCONNECTED) {
@@ -517,7 +525,7 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 			pjsua_player_destroy(player_id);
 			player_id = -1;
 		}
-		if (recorder_id != -1){
+		if (recorder_id != -1) {
 			pjsua_recorder_destroy(recorder_id);
 			recorder_id = -1;
 		}

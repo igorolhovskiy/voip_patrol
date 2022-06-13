@@ -221,7 +221,7 @@ class Test {
 		call_state_t wait_state {INV_STATE_NULL};
 		test_state_t state {VPT_RUN};
 		int call_id {0};
-		bool recording {false};
+		std::string recording {""};
 		std::string record_fn;
 		std::string reference_fn;
 		std::string rtp_stats_json;
@@ -261,7 +261,7 @@ class TestAccount : public Account {
 		std::string force_contact;
 		bool early_media {false};
 		bool fail_on_accept {false};
-		bool recording {false};
+		std::string recording {""};
 		SipHeaderVector x_headers;
 		int call_count {-1};
 		std::string play;

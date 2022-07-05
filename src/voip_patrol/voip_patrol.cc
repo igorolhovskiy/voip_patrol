@@ -300,7 +300,7 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 	CallInfo ci = getInfo();
 	LOG(logINFO) <<__FUNCTION__<<" id:"<<ci.id<<" idx["<<prm.streamIdx<<"]";
 	pjmedia_stream const *pj_stream = (pjmedia_stream *)&prm.stream;
-	pjmedia_stream_info *pj_stream_info;
+	//pjmedia_stream_info *pj_stream_info;
 
 	if (ci.state == PJSIP_INV_STATE_EARLY) {
 		LOG(logINFO) << __FUNCTION__ << "State is PJSIP_INV_STATE_EARLY";
@@ -327,7 +327,8 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 		// MOS-LQ - Listening Quality
 		/* represent loss dependent effective equipment impairment factor and percentage loss probability */
 		const int Bpl = 25; /* packet-loss robustness factor Bpl is defined as a codec-specific value. */
-		float Ie_eff_rx, Ppl_rx, Ppl_cut_rx, Ie_eff_tx, Ppl_tx, Ppl_cut_tx;
+		//float Ie_eff_rx, Ppl_rx, Ppl_cut_rx, Ie_eff_tx, Ppl_tx, Ppl_cut_tx;
+		float Ie_eff_rx, Ppl_rx, Ie_eff_tx, Ppl_tx;
 		const int Ie = 0; /* Not used : Refer to Appendix I of [ITU-T G.113] for the currently recommended values of Ie.*/
 		float Ta = 0.0; /* Absolute Delay */
 		Ppl_rx = (rxStat.loss+rxStat.discard) * 100.0 / (rxStat.pkt + rxStat.loss);
@@ -405,7 +406,7 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 		// Commented out as on onStreamDestroyed we're filling only RTP stats.
 		// Problem could be on 183 - 4xx sequences, where RTP stream destroyed on 183, but real result is 4xx.
 		//test->update_result();
-	} catch (pj::Error e)  {
+	} catch (pj::Error& e)  {
 			LOG(logERROR) <<__FUNCTION__<<" error :" << e.status << std::endl;
 	}
 }
@@ -446,9 +447,11 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 	std::string remote_user("");
 	std::string local_user("");
 	std::size_t pos = ci.localUri.find("@");
+
 	LOG(logINFO) <<__FUNCTION__<<": ["<< ci.localUri <<"]";
-	if (ci.localUri[0] == '<')
+	if (ci.localUri[0] == '<') {
 		uri_prefix++;
+	}
 	if (pos!=std::string::npos) {
 		local_user = ci.localUri.substr(uri_prefix, pos - uri_prefix);
 	}
@@ -484,7 +487,8 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 		test->sip_call_id = ci.callIdString;
 	}
 	if (test && (ci.state == PJSIP_INV_STATE_DISCONNECTED || ci.state == PJSIP_INV_STATE_CONFIRMED)) {
-		std::string res = "call[" + std::to_string(ci.lastStatusCode) + "] reason["+ ci.lastReason +"]";
+		std::string res = "call[" + std::to_string(ci.lastStatusCode) + "] reason [" + ci.lastReason + "] remote user [" + remote_user + "]";
+		LOG(logINFO) << __FUNCTION__ << "[Hangup request] " << res;
 		test->connect_duration = ci.connectDuration.sec;
 		test->setup_duration = ci.totalDuration.sec - ci.connectDuration.sec;
 		test->result_cause_code = (int)ci.lastStatusCode;
@@ -497,8 +501,8 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 				disconnecting = true;
 			}
 			if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
-				CallOpParam prm(true);
-				hangup(prm);
+				CallOpParam prm_hangup(true);
+				hangup(prm_hangup);
 				LOG(logINFO) <<__FUNCTION__<<": hangup ok";
 			}
 		}
@@ -517,7 +521,7 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 		}
 	}
 	if (ci.state == PJSIP_INV_STATE_DISCONNECTED) {
-		std::string res = "code[" + std::to_string(ci.lastStatusCode) + "] reason["+ ci.lastReason +"]";
+		std::string res = " code [" + std::to_string(ci.lastStatusCode) + "] reason ["+ ci.lastReason +"] remote user [" + remote_user + "]" ;
 		test->rtp_stats_ready = true;
 		test->update_result();
 		LOG(logINFO) <<__FUNCTION__<<": [Call disconnected]:"<< res;
@@ -569,6 +573,7 @@ void TestAccount::onRegState(OnRegStateParam &prm) {
 			test->transport = pjsip_data->tp_info.transport->type_name;
 		}
 		std::string res = "registration[" + std::to_string(prm.code) + "] reason[" + prm.reason + "] expiration[" + std::to_string(prm.expiration) + "]";
+		LOG(logINFO) << __FUNCTION__ << "[onRegState] " << res;
 		test->result_cause_code = (int)prm.code;
 		test->reason = prm.reason;
 		test->update_result();
@@ -689,7 +694,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
  *  Test implementation
  */
 
-Test::Test(Config *config, string type) : config(config), type(type) {
+Test::Test(Config *config, const string& type) : config(config), type(type) {
 	char now[20] = {'\0'};
 	get_time_string(now);
 	start_time = now;
@@ -698,7 +703,7 @@ Test::Test(Config *config, string type) : config(config), type(type) {
 
 void Test::get_mos() {
 	std::string reference = "voice_ref_files/reference_8000_12s.wav";
-	std::string degraded = "voice_files/" + remote_user + "_rec.wav";
+	//std::string degraded = "voice_files/" + remote_user + "_rec.wav";
 	LOG(logINFO)<<__FUNCTION__<<": [call] mos["<<mos<<"] min-mos["<<min_mos<<"] "<< reference <<" vs "<< record_fn;
 }
 
@@ -894,14 +899,16 @@ void Test::update_result() {
 			"<td "+td_hd_style+">from</td><td "+td_hd_style+">to</td>\r\n";
 		config->testResults.push_back(headers);
 	}
-	std::string mos_color = "green";
+	//std::string mos_color = "green";
 	std::string code_color = "green";
-	if (expected_cause_code != result_cause_code)
+	if (expected_cause_code != result_cause_code) {
 		code_color = "red";
-	if (mos < min_mos)
-		mos_color = "red";
-	if (!success)
+	}
+	// if (mos < min_mos)
+	// 	mos_color = "red";
+	if (!success) {
 		res = "<font color='red'>"+res+"</font>";
+	}
 
 	std::string html_duration_table = "<table><tr><td>expected</td><td>max</td><td>hangup</td><td>connect</td></tr><tr>"
 		"<td "+td_small_style+">"+std::to_string(expected_duration)+"</td>"
@@ -928,11 +935,11 @@ void Test::update_result() {
  * ResultFile implementation
  */
 
-ResultFile::ResultFile(string name) : name(name) {
+ResultFile::ResultFile(const std::string& name) : name(name) {
 	open();
 }
 
-bool ResultFile::write(string res) {
+bool ResultFile::write(const std::string& res) {
 	try {
 		file << res << "\n";
 	} catch (Error & err) {
@@ -966,7 +973,7 @@ void ResultFile::close() {
  * Config implementation
  */
 
-Config::Config(string result_fn) : result_file(result_fn), action(this) {
+Config::Config(const std::string& result_fn) : result_file(result_fn), action(this) {
 	tls_cfg.ca_list = "";
 	tls_cfg.private_key = "";
 	tls_cfg.certificate = "";
@@ -975,17 +982,18 @@ Config::Config(string result_fn) : result_file(result_fn), action(this) {
 	json_result_count = 0;
 	graceful_shutdown = false;
 	rewrite_ack_transport = false;
+	total_tasks_count = 0;
 	memset(&this->turn_config, 0, sizeof(turn_config_t));
 }
 
-void Config::set_output_file(string file_name) {
+void Config::set_output_file(const std::string& file_name) {
 		result_file.flush();
 		result_file.close();
 		result_file.name = file_name;
 		result_file.open();
 }
 
-void Config::log(std::string message) {
+void Config::log(const std::string& message) {
 	LOG(logINFO) <<"[timestamp]"<< message ;
 }
 
@@ -1062,7 +1070,7 @@ TestAccount* Config::findAccount(std::string account_name) {
 	return nullptr;
 }
 
-bool Config::process(std::string p_configFileName, std::string p_jsonResultFileName) {
+bool Config::process(const std::string& p_configFileName, const std::string& p_jsonResultFileName) {
 	ezxml_t xml_actions, xml_action, xml_xhdr, xml_check, xml_param;
 	configFileName = p_configFileName;
 	ezxml_t xml_conf = ezxml_parse_file(configFileName.c_str());
@@ -1098,9 +1106,9 @@ replay:
 				sh.hName = ezxml_attr(xml_xhdr, "name");
 				sh.hValue = ezxml_attr(xml_xhdr, "value");
 				if (sh.hValue.compare(0, 7, "VP_ENV_") == 0){
-					if (const char* val = std::getenv(sh.hValue.c_str())) {
-						LOG(logINFO) <<__FUNCTION__<< ":"<<sh.hValue<<" substitution x-header:"<<sh.hName<<" "<<val;
-						sh.hValue = val;
+					if (const char* h_val = std::getenv(sh.hValue.c_str())) {
+						LOG(logINFO) <<__FUNCTION__<< ":"<<sh.hValue<<" substitution x-header:"<<sh.hName<<" "<<h_val;
+						sh.hValue = h_val;
 					}
 				}
 				x_hdrs.push_back(sh);
@@ -1110,43 +1118,44 @@ replay:
 			// <check-message>
 			for (xml_check = ezxml_child(xml_action, "check-message"); xml_check; xml_check=xml_check->next) {
 				ActionCheck check;
-				const char * val;
-				val = ezxml_attr(xml_check, "method");
-				if (val) {
-					check.method = string(val);
+				const char * val_inner = ezxml_attr(xml_check, "method");
+				if (val_inner) {
+					check.method = string(val_inner);
 				} else {
 					LOG(logERROR) <<__FUNCTION__<<"<check-message> missing [method] param !";
 					continue;
 				}
-				val = ezxml_attr(xml_check, "regex");
-				if (val) {
-					check.regex = string(val);
+				val_inner = ezxml_attr(xml_check, "regex");
+				if (val_inner) {
+					check.regex = string(val_inner);
 				} else {
 					LOG(logERROR) <<__FUNCTION__<<"<check-message> missing [regex] param !";
 					continue;
 				}
-				val = ezxml_attr(xml_check, "code");
-				if (val) check.code = atoi(val);
+				val_inner = ezxml_attr(xml_check, "code");
+				if (val_inner) {
+					check.code = atoi(val_inner);
+				}
 				LOG(logINFO) <<__FUNCTION__<<" check-message: method["<<check.method<<"] regex["<< check.regex<<"]";
 				checks.push_back(check);
 			}
 			// <checks-header>
 			for (xml_check = ezxml_child(xml_action, "check-header"); xml_check; xml_check=xml_check->next) {
 				ActionCheck check;
-				const char * val = ezxml_attr(xml_check, "name");
-				if (!val) {
+				const char * val_inner = ezxml_attr(xml_check, "name");
+				if (!val_inner) {
 					LOG(logERROR) <<__FUNCTION__<<" missing action check header name !";
 					continue;
 				}
-				check.hdr.hName = val;
-				val = ezxml_attr(xml_check, "value");
-				if (val) {
-					check.hdr.hValue = val;
+				check.hdr.hName = val_inner;
+				val_inner = ezxml_attr(xml_check, "value");
+				if (val_inner) {
+					check.hdr.hValue = val_inner;
 				} else {
-					val = ezxml_attr(xml_check, "regex");
-					if (val) {
+					val_inner = ezxml_attr(xml_check, "regex");
+					if (val_inner) {
 						std::string tmp_val;
-						tmp_val.assign(val);
+						tmp_val.assign(val_inner);
 						check.hdr.hValue = "regex/" + tmp_val;
 					}
 				}
@@ -1229,8 +1238,9 @@ void Alert::send(void) {
 	struct curl_slist *recipients = NULL;
 	upload_data.lines_read = 0;
 	LOG(logINFO) <<__FUNCTION__<< " smtp" << config->alert_server_url;
-	if (config->alert_server_url.empty() || config->alert_email_to.empty() || config->alert_email_from.empty())
+	if (config->alert_server_url.empty() || config->alert_email_to.empty() || config->alert_email_from.empty()) {
 		return;
+	}
 
 	prepare();
 	if(curl) {
@@ -1243,8 +1253,9 @@ void Alert::send(void) {
 		curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
 		curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 		res = curl_easy_perform(curl);
-		if(res != CURLE_OK)
-		std::cerr << "curl_easy_perform() failed: "  << curl_easy_strerror(res) << alert_server_url <<"\n";
+		if(res != CURLE_OK) {
+			std::cerr << "curl_easy_perform() failed: "  << curl_easy_strerror(res) << alert_server_url <<"\n";
+		}
 		curl_slist_free_all(recipients);
 		curl_easy_cleanup(curl);
 	}
@@ -1619,7 +1630,7 @@ int main(int argc, char **argv){
 				disconnecting = true;
 				try {
 					call->hangup(prm);
-				} catch (pj::Error e)  {
+				} catch (pj::Error& e)  {
 					LOG(logERROR) <<__FUNCTION__<<" error :" << e.status;
 				}
 			} else {

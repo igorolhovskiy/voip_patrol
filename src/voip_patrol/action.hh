@@ -31,7 +31,7 @@ using namespace std;
 enum class APType { apt_integer, apt_string, apt_float, apt_bool };
 
 struct ActionParam {
-	ActionParam(string name, bool required, APType type, string s_val="", int i_val=0, float f_val=0.0, bool b_val=false)
+	ActionParam(const string& name, bool required, APType type, const string& s_val="", int i_val=0, float f_val=0.0, bool b_val=false)
                  : type(type), required(required), name(name), i_val(i_val), s_val(s_val), f_val(f_val) , b_val(b_val) {}
 	APType type {APType::apt_integer};
 	string name;
@@ -48,14 +48,14 @@ class Action {
 			Action(Config *cfg);
 			vector<ActionParam> get_params(string);
 			bool set_param(ActionParam&, const char *val);
-			bool set_param_by_name(vector<ActionParam> *params, const string name, const char *val=nullptr);
-			void do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, pj::SipHeaderVector &x_headers);
-			void do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks, pj::SipHeaderVector &x_headers);
-			void do_wait(vector<ActionParam> &params);
-			void do_register(vector<ActionParam> &params, vector<ActionCheck> &checks, pj::SipHeaderVector &x_headers);
-			void do_alert(vector<ActionParam> &params);
-			void do_codec(vector<ActionParam> &params);
-			void do_turn(vector<ActionParam> &params);
+			bool set_param_by_name(vector<ActionParam> *params, const string& name, const char *val=nullptr);
+			void do_call(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
+			void do_accept(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
+			void do_wait(const vector<ActionParam> &params);
+			void do_register(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
+			void do_alert(const vector<ActionParam> &params);
+			void do_codec(const vector<ActionParam> &params);
+			void do_turn(const vector<ActionParam> &params);
 			void set_config(Config *);
 			Config* get_config();
 	private:

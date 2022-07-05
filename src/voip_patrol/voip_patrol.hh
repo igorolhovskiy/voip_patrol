@@ -69,11 +69,11 @@ class Alert {
 
 class ResultFile {
 	public:
-		ResultFile(std::string file_name);
+		ResultFile(const std::string& file_name);
 		void flush();
 		bool open();
 		void close();
-		bool write(std::string res);
+		bool write(const std::string& res);
 		std::string name;
 	private:
 		std::fstream file;
@@ -100,10 +100,10 @@ typedef struct turn_config {
 
 class Config {
 	public:
-		Config(std::string result_file_name);
+		Config(const std::string& result_file_name);
 		~Config();
-		void log(std::string message);
-		bool process(std::string ConfigFileName, std::string jsonResultFile);
+		void log(const std::string& message);
+		bool process(const std::string& ConfigFileName, const std::string& jsonResultFile);
 		bool wait(bool complete_all);
 		TestAccount* findAccount(std::string);
 		TestAccount* createAccount(AccountConfig acc_cfg);
@@ -115,7 +115,7 @@ class Config {
 		std::vector<std::string> testResults;
 		ezxml_t xml_conf_head;
 		ezxml_t xml_test;
-		void set_output_file(std::string);
+		void set_output_file(const std::string&);
 		bool removeCall(TestCall *call);
 		bool graceful_shutdown;
 		bool rewrite_ack_transport;
@@ -174,7 +174,7 @@ typedef enum test_run_state {
 
 class Test {
 	public:
-		Test(Config *config, string type);
+		Test(Config *config, const string& type);
 		std::string type;
 		void update_result(void);
 		std::string from{""};

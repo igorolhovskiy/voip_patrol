@@ -84,7 +84,7 @@ bool Action::set_param(ActionParam &param, const char *val) {
 	return true;
 }
 
-bool Action::set_param_by_name(vector<ActionParam> *params, const string name, const char *val) {
+bool Action::set_param_by_name(vector<ActionParam> *params, const string& name, const char *val) {
 	for (auto &param : *params) {
 		if (param.name.compare(name) == 0) {
 				return set_param(param, val);
@@ -152,7 +152,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("wait_until", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("hangup", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("re_invite_interval", false, APType::apt_integer));
-	do_accept_params.push_back(ActionParam("min_mos", false, APType::apt_float));
+	//do_accept_params.push_back(ActionParam("min_mos", false, APType::apt_float));
 	do_accept_params.push_back(ActionParam("rtp_stats", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("late_start", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("srtp", false, APType::apt_string));
@@ -251,7 +251,17 @@ void setTurnConfig(AccountConfig &acc_cfg, Config *cfg) {
 // ret.ice_cfg.ice_always_update = natConfig.iceAlwaysUpdate;
 }
 
-void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &checks, SipHeaderVector &x_headers) {
+// void setTurnConfigSRTP(AccountConfig &acc_cfg, Config *cfg) {
+// 	turn_config_t *turn_config = &cfg->turn_config;
+// 	if (turn_config->enabled && !turn_config->stun_only) {
+// 		LOG(logINFO) << __FUNCTION__ << " Adjusting TURN config for SRTP";
+// 		acc_cfg.natConfig.iceEnabled = true;
+// 		acc_cfg.natConfig.iceTrickle = PJ_ICE_SESS_TRICKLE_FULL;
+// 		acc_cfg.natConfig.iceAggressiveNomination = true;
+// 	}
+// }
+
+void Action::do_register(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const SipHeaderVector &x_headers) {
 	string type {"register"};
 	string transport {"udp"};
 	string label {};
@@ -327,7 +337,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 				try {
 					acc->setRegistration(false);
 					acc->unregistering = true;
-				} catch (pj::Error e)  {
+				} catch (pj::Error& e)  {
 					LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
 				}
 			} else {
@@ -337,7 +347,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 			while (acc->unregistering && max_wait_ms >= 0) {
 				pj_thread_sleep(10);
 				max_wait_ms -= 10;
-				acc_inf = acc->getInfo();
+				// acc_inf = acc->getInfo();
 			}
 			if (acc->unregistering) {
 				LOG(logERROR) << __FUNCTION__ << " error : unregister failed/timeout"<< std::endl;
@@ -446,7 +456,7 @@ void Action::do_register(vector<ActionParam> &params, vector<ActionCheck> &check
 	acc->account_name = account_name;
 }
 
-void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks, pj::SipHeaderVector &x_headers) {
+void Action::do_accept(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers) {
 	string type {"accept"};
 	string account_name {};
 	string transport {};
@@ -456,7 +466,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 	string play_dtmf {};
 	string timer {};
 	string cancel_behavoir {};
-	float min_mos {0.0};
+	//float min_mos {0.0};
 	int max_duration {0};
 	int ring_duration {0};
 	int early_media {false};
@@ -489,7 +499,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 		else if (param.name.compare("ring_duration") == 0) ring_duration = param.i_val;
 		else if (param.name.compare("early_media") == 0) early_media = param.b_val;
 		else if (param.name.compare("fail_on_accept") == 0) fail_on_accept = param.b_val;
-		else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
+		//else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
 		else if (param.name.compare("rtp_stats") == 0) rtp_stats = param.b_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 		else if (param.name.compare("late_start") == 0) late_start = param.b_val;
@@ -605,7 +615,7 @@ void Action::do_accept(vector<ActionParam> &params, vector<ActionCheck> &checks,
 }
 
 
-void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, SipHeaderVector &x_headers) {
+void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const SipHeaderVector &x_headers) {
 	string type {"call"};
 	string play {default_playback_file};
 	string play_dtmf {};
@@ -763,6 +773,11 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 			LOG(logINFO) << __FUNCTION__ << " Forcing SRTP";
 		}
 
+		// FIXME
+		// if (acc_cfg.mediaConfig.srtpUse == PJMEDIA_SRTP_OPTIONAL || acc_cfg.mediaConfig.srtpUse == PJMEDIA_SRTP_MANDATORY) {
+		// 	setTurnConfigSRTP(acc_cfg, config);
+		// }
+
 		acc = config->createAccount(acc_cfg);
 		LOG(logINFO) << __FUNCTION__ << ": session timer["<<timer<<"] :"<< acc_cfg.callConfig.timerUse << " TURN: "<< acc_cfg.natConfig.turnEnabled;
 	}
@@ -820,7 +835,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 					to_uri = "sip:"+to_uri+";transport=tls";
 			try {
 				call->makeCall("sip:"+callee+";transport=tls", prm, to_uri);
-			} catch (pj::Error e)  {
+			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
 			}
 		} else if (transport == "sips") {
@@ -828,7 +843,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 					to_uri = "sips:"+to_uri;
 			try {
 				call->makeCall("sips:"+callee, prm, to_uri);
-			} catch (pj::Error e)  {
+			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
 			}
 		} else if (transport == "tcp") {
@@ -836,7 +851,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 				to_uri = "sip:"+to_uri+";transport=tcp";
 			try {
 				call->makeCall("sip:"+callee+";transport=tcp", prm, to_uri);
-			} catch (pj::Error e)  {
+			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
 			}
 		} else {
@@ -844,7 +859,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 					to_uri = "sip:"+to_uri;
 			try {
 				call->makeCall("sip:"+callee, prm, to_uri);
-			} catch (pj::Error e)  {
+			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
 			}
 		}
@@ -852,7 +867,7 @@ void Action::do_call(vector<ActionParam> &params, vector<ActionCheck> &checks, S
 	} while (repeat >= 0);
 }
 
-void Action::do_turn(vector<ActionParam> &params) {
+void Action::do_turn(const vector<ActionParam> &params) {
 	bool enabled {false};
 	string server {};
 	string username {};
@@ -884,7 +899,7 @@ void Action::do_turn(vector<ActionParam> &params) {
 	config->turn_config.stun_only = stun_only;
 }
 
-void Action::do_codec(vector<ActionParam> &params) {
+void Action::do_codec(const vector<ActionParam> &params) {
 	string enable {};
 	int priority {0};
 	string disable {};
@@ -904,7 +919,7 @@ void Action::do_codec(vector<ActionParam> &params) {
 		config->ep->setCodecs(enable, priority);
 }
 
-void Action::do_alert(vector<ActionParam> &params) {
+void Action::do_alert(const vector<ActionParam> &params) {
 	string email {};
 	string email_from {};
 	string smtp_host {};
@@ -919,7 +934,7 @@ void Action::do_alert(vector<ActionParam> &params) {
 	config->alert_server_url = smtp_host;
 }
 
-void Action::do_wait(vector<ActionParam> &params) {
+void Action::do_wait(const vector<ActionParam> &params) {
 	int duration_ms = 0;
 	bool complete_all = false;
 	for (auto param : params) {
@@ -1015,7 +1030,7 @@ void Action::do_wait(vector<ActionParam> &params) {
 						CallOpParam prm(true);
 						try {
 							call->hangup(prm);
-						} catch (pj::Error e)  {
+						} catch (pj::Error& e)  {
 							if (e.status != 171140) {
 								LOG(logERROR) << __FUNCTION__ << " error :" << e.status;
 							}
@@ -1037,7 +1052,7 @@ void Action::do_wait(vector<ActionParam> &params) {
 							try {
 								call->reinvite(prm);
 								call->test->re_invite_next = call->test->re_invite_next + call->test->re_invite_interval;
-							} catch (pj::Error e)  {
+							} catch (pj::Error& e)  {
 								if (e.status != 171140) {
 									LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
 								}
@@ -1051,7 +1066,7 @@ void Action::do_wait(vector<ActionParam> &params) {
 							LOG(logINFO) << "hangup : call in PJSIP_INV_STATE_CONFIRMED" ;
 							try {
 								call->hangup(prm);
-							} catch (pj::Error e)  {
+							} catch (pj::Error& e)  {
 								if (e.status != 171140) {
 									LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
 								}

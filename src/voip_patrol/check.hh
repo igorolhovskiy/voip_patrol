@@ -34,6 +34,6 @@ class ActionCheck {
 };
 
 bool check_regex(string m, string e);
-void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, string message);
+void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& message);
 
 #endif

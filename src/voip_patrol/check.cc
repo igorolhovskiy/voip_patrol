@@ -38,7 +38,7 @@ bool check_regex(string m, string e) {
 }
 
 
-void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, string message) {
+void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& message) {
 	std::string method = pj2Str(msg->line.req.method.name);
 	LOG(logINFO) << __FUNCTION__ << ": " + method;
 	// action checks for headers

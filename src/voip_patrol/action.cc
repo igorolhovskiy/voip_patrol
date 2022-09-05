@@ -156,6 +156,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("rtp_stats", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("late_start", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("srtp", false, APType::apt_string));
+	do_accept_params.push_back(ActionParam("force_contact", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("play", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("record", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("code", false, APType::apt_integer));
@@ -477,6 +478,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	bool late_start {false};
 	bool fail_on_accept {false};
 	string srtp {"none"};
+	string force_contact {};
 	int code {200};
 	int expected_cause_code {200};
 	int call_count {-1};
@@ -502,6 +504,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		//else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
 		else if (param.name.compare("rtp_stats") == 0) rtp_stats = param.b_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
+		else if (param.name.compare("force_contact") == 0) force_contact = param.s_val;
 		else if (param.name.compare("late_start") == 0) late_start = param.b_val;
 		else if (param.name.compare("wait_until") == 0) wait_until = get_call_state_from_string(param.s_val);
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
@@ -521,9 +524,14 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	vp::tolower(transport);
 
 	TestAccount *acc = config->findAccount(account_name);
-	if (!acc) {
+	if (!acc || !force_contact.empty()) {
 		AccountConfig acc_cfg;
 		setTurnConfig(acc_cfg, config);
+
+		if (!force_contact.empty()){
+			LOG(logINFO) << __FUNCTION__ << ":do_accept:force_contact:" << force_contact << "\n";
+			acc_cfg.sipConfig.contactForced = force_contact;
+		}
 
 		if (!transport.empty()) {
 			if (transport == "tcp") {
@@ -572,7 +580,11 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 			LOG(logINFO) << __FUNCTION__ << " Forcing SRTP";
 		}
 
-		acc = config->createAccount(acc_cfg);
+		if (acc) {
+			acc->modify(acc_cfg);
+		} else {
+			acc = config->createAccount(acc_cfg);
+		}
 	}
 
 	if (fail_on_accept) {
@@ -609,6 +621,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->x_headers = x_headers;
 	acc->checks = checks;
 	acc->srtp = srtp;
+	acc->force_contact = force_contact;
 	acc->cancel_behavoir = cancel_behavoir;
 	acc->fail_on_accept	= fail_on_accept;
 	acc->account_name = account_name;

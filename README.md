@@ -340,6 +340,7 @@ DISCONNECTED
 | response_delay | int | delay before 100 reponse is sent in seconds, useful to test timeouts and race conditions |
 | call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |
 | transport | string | Force a specific transport for all messages on accepted calls, default to all transport available |
+| force_contact | string | optional URI to be put as Contact for accept account. Helps bypass NAT-related issues during inbound call testing |
 | play | string | path to file to play upon answer |
 | record | string | path to file to record audio upon answer. Can be `auto`, in this case filename would be `/srv/<call_id>_<remote_contact>_rec.wav` |
 | play_dtmf | string | list of DTMF symbols to be sent upon answer |

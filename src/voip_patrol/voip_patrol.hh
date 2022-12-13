@@ -232,6 +232,8 @@ class Test {
 		bool rtp_stats_ready{false};
 		bool queued {false};
 		bool fail_on_accept {false};
+		std::string expected_message;
+		std::string message;
 		vector<ActionCheck> checks;
 		Config *config;
 	private:
@@ -250,6 +252,8 @@ class TestAccount : public Account {
 		void removeCall(Call *call);
 		virtual void onRegState(OnRegStateParam &prm);
 		virtual void onIncomingCall(OnIncomingCallParam &iprm);
+		virtual void onInstantMessage(OnInstantMessageParam &prm);
+		virtual void onInstantMessageStatus(OnInstantMessageStatusParam &prm);
 		int hangup_duration {0};
 		int re_invite_interval {0};
 		int max_duration {0};
@@ -264,6 +268,7 @@ class TestAccount : public Account {
 		std::string recording {""};
 		SipHeaderVector x_headers;
 		int call_count {-1};
+		int message_count {-1};
 		std::string play;
 		std::string play_dtmf;
 		std::string timer;

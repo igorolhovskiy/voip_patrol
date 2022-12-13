@@ -400,6 +400,67 @@ DISCONNECTED
 | instance_id | int | same as `reg_id`, if not present, it will be generated automatically |
 | rewrite_contact | bool | default `true`, detect public IP when registering and rewrite the contact header |
 
+
+### message command parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| from | string | From header complete "\&quot;Display Name\&quot; <sip:test at 127.0.0.1>"  |
+| to_uri | string | used@host part of the URI in the To header |
+| transport | string | force a specific transport <tcp,udp,tls,sips> |
+| realm | string | realm use for authentication. If empty - any auth realm is allowed |
+| username | string | authentication username, account name, From/To/Contact header user part |
+| password | string | authentication password |
+| label | string | test description or label |
+
+### Example: sending a message
+```xml
+<?xml version="1.0"?>
+<config>
+  <actions>
+    <action type="message" label="testing SIP message" transport="udp"
+      expected_cause_code="202"
+      text="Message in a bottle."
+      from="123456@in.the.ocean"
+      to_uri="15876580542@in.the.ocean"
+      username="123456"
+      password="pass"
+     />
+    <action type="wait" complete="true"/>
+  </actions>
+</config>
+```
+
+### accept_message command parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| account | string | Account will be used if it matches the user part of an incoming message RURI or "default" will catch all |
+| message_count | int | The amount of messages to receive to consider the command completed, default -1 (considered completed) |
+| transport | string | Force a specific transport for all messages on accepted messages, default to all transport available |
+| label | string | test description or label |
+
+### Example: receiving a message
+```xml
+<?xml version="1.0"?>
+<config>
+  <actions>
+    <action type="register" label="register" transport="udp"
+      expected_cause_code="200"
+      username="123456"
+      password="password"
+      registrar="pbx.somewhere.time"
+     />
+    <action type="wait" complete="true"/>
+    <action type="accept_message"
+      account="123456"
+      message_count="1"
+     />
+    <action type="wait" complete="true"/>
+  </actions>
+</config>
+```
+
 ### wait command parameters
 
 | Name | Type | Description |

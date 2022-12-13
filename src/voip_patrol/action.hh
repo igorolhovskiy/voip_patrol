@@ -56,6 +56,8 @@ class Action {
 			void do_alert(const vector<ActionParam> &params);
 			void do_codec(const vector<ActionParam> &params);
 			void do_turn(const vector<ActionParam> &params);
+			void do_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
+			void do_accept_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
 			void set_config(Config *);
 			Config* get_config();
 	private:
@@ -68,6 +70,8 @@ class Action {
 			vector<ActionParam> do_alert_params;
 			vector<ActionParam> do_codec_params;
 			vector<ActionParam> do_turn_params;
+			vector<ActionParam> do_message_params;
+			vector<ActionParam> do_accept_message_params;
 			Config* config;
 };
 

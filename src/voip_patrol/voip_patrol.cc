@@ -689,6 +689,33 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	call->answer(prm);
 }
 
+void TestAccount::onInstantMessage(OnInstantMessageParam &prm) {
+	LOG(logINFO) << "[Account] instant message received from["<< prm.fromUri<<"]message["<<prm.msgBody<<"]";
+
+	if (message_count > 0) {
+		message_count -= 1;
+	}
+
+	if (test) {
+		test->message = prm.msgBody;
+		test->update_result();
+	}
+}
+
+void TestAccount::onInstantMessageStatus(OnInstantMessageStatusParam &prm) {
+	LOG(logINFO) << "[Account] instant message status received code:"<< prm.code;
+
+	if (test) {
+		LOG(logINFO) << "[Account] instant message status received updating test code:"<< prm.code;
+
+		test->result_cause_code = (int)prm.code;
+		test->reason = prm.reason;
+		test->update_result();
+	} else {
+		LOG(logINFO) << "[Account] instant message status received, not test found";
+	}
+
+}
 
 /*
  *  Test implementation
@@ -734,6 +761,19 @@ void Test::update_result() {
 	std::string res_text = "No info";
 
 	LOG(logINFO)<<__FUNCTION__;
+
+	if (type == "accept_message") {
+		if (expected_message == "" || expected_message == message) {
+			res = "PASS";
+			success = true;
+		} else {
+			LOG(logINFO) << __FUNCTION__ << "[" << expected_message << "] != [" << message << "]\n";
+
+			res = "FAIL";
+			success = false;
+		}
+	}
+
 	if (min_mos > 0 && mos == 0) {
 			return;
 	}
@@ -1189,7 +1229,14 @@ replay:
 			} else if ( action_type.compare("alert") == 0 ) action.do_alert(params);
 			else if ( action_type.compare("codec") == 0 ) action.do_codec(params);
 			else if ( action_type.compare("turn") == 0 ) action.do_turn(params);
-
+			else if ( action_type.compare("message") == 0 ) {
+				total_tasks_count += 1;
+				action.do_message(params, checks, x_hdrs);
+			}
+			else if ( action_type.compare("accept_message") == 0 ) {
+				total_tasks_count += 1;
+				action.do_accept_message(params, checks, x_hdrs);
+			}
 		}
 	}
 	return true;

@@ -202,7 +202,7 @@ void Action::init_actions_params() {
 	do_accept_message_params.push_back(ActionParam("account", false, APType::apt_string));
 	do_accept_message_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_accept_message_params.push_back(ActionParam("label", false, APType::apt_string));
-	do_accept_message_params.push_back(ActionParam("message_count", false, APType::apt_string));
+	do_accept_message_params.push_back(ActionParam("message_count", false, APType::apt_integer));
 }
 
 void setTurnConfig(AccountConfig &acc_cfg, Config *cfg) {
@@ -998,7 +998,7 @@ void Action::do_accept_message(const vector<ActionParam> &params, const vector<A
 	string account_name {};
 	string transport {};
 	int code {200};
-	int message_count{1};
+	int message_count {1};
 	string label {};
 	string reason {};
 	string expected_message {};
@@ -1059,7 +1059,7 @@ void Action::do_accept_message(const vector<ActionParam> &params, const vector<A
 	Test *test = new Test(config, type);
 	test->checks = checks;
 	test->expected_cause_code = 200;
-	acc->setTest(test);
+	acc->testAccept = test;
 }
 
 void Action::do_codec(const vector<ActionParam> &params) {

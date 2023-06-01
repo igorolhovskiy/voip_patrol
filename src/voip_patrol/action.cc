@@ -380,11 +380,8 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	test->srtp = srtp;
 
 	LOG(logINFO) << __FUNCTION__ << " >> sip:" + account_full_name;
+
 	AccountConfig acc_cfg;
-	SipHeader sh;
-	sh.hName = "User-Agent";
-	sh.hValue = "<volts_voip_patrol>";
-	acc_cfg.regConfig.headers.push_back(sh);
 	setTurnConfig(acc_cfg, config);
 
 	if (reg_id != "" || instance_id != "") {

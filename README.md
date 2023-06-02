@@ -49,7 +49,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
     </action>
     <!-- note: param value starting with VP_ENV_ will be replaced by environment variables -->
     <!-- note: rtp_stats will include RTP transmission statistics -->
-    <!-- note: x-header tag inside an action will append an header -->
+    <!-- note: x-header tag inside an action will append an header. You can add any header like User-Agent with this method -->
     <action type="wait" complete="true"/>
   </actions>
 </config>

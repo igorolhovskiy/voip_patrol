@@ -224,6 +224,17 @@ void TestCall::makeCall(const string &dst_uri, const CallOpParam &prm, const str
 		pj_to_uri = str2Pj(to_uri);
 	}
 
+	// Adding custom headers
+	for (SipHeader sip_header : prm.txOption.headers) {
+		LOG(logINFO) <<__FUNCTION__<<": Adding custom header " << sip_header.hName << " = " << sip_header.hValue;
+
+		pjsip_generic_string_hdr x_header;
+		pj_str_t hname = str2Pj(sip_header.hName);
+		pj_str_t hvalue = str2Pj(sip_header.hValue);
+		pjsip_generic_string_hdr_init2(&x_header, &hname, &hvalue);
+		pj_list_push_back(&param.msg_data.hdr_list, &x_header);
+	}
+
 	int id = Call::getId();
 	PJSUA2_CHECK_EXPR( pjsua_call_make_call(acc->getId(), &pj_to_uri,
 		param.p_opt, this, param.p_msg_data, &id) );

@@ -359,8 +359,8 @@ DISCONNECTED
 | ---- | ---- | ----------- |
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | proxy | string | ip/hostname of a proxy where to send the call |
-| caller | string | From header user@host, only used if from it not specified |
-| from | string | From header complete `"Display Name" <sip:test at 127.0.0.1>`  |
+| caller | string | `user@host`, mandatory parameter (also used in the From header unless `from` is specified) |
+| from | string | From header complete `"Display Name" <sip:test at 127.0.0.1>` in a format `&quot;Display Name&quot; &lt;sip:test at 127.0.0.1&gt;`  |
 | callee | string | request URI `user@host` (also used in the To header unless to_uri is specified) |
 | to_uri | string | used@host part of the URI in the To header |
 | auth_username | string | authentication username on INVITE |

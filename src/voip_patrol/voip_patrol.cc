@@ -1067,8 +1067,9 @@ bool Config::removeCall(TestCall *call) {
 			break;
 		}
 	}
-	if (found)
-		delete call;
+	// Commented as it's bad idea to delete an outer variable inside a function, even with memory leaks possible
+	// if (found)
+	// 	delete call;
 	return found;
 }
 

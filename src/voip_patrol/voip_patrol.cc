@@ -1358,8 +1358,8 @@ void VoipPatrolEnpoint::onSelectAccount(OnSelectAccountParam &param) {
 	pjsip_rx_data* pjsip_data = (pjsip_rx_data *) param.rdata.pjRxData;
 	pjsip_uri* request_line = pjsip_data->msg_info.msg->line.req.uri;
 
-	if (!PJSIP_URI_SCHEME_IS_SIP(request_line)) {
-		LOG(logERROR) << __FUNCTION__ << " Request scheme is not SIP!";
+	if (!PJSIP_URI_SCHEME_IS_SIP(request_line) || !PJSIP_URI_SCHEME_IS_SIPS(request_line)) {
+		LOG(logERROR) << __FUNCTION__ << " Request " << request_line << " scheme is not SIP/SIPS!";
 
 		return;
 	}

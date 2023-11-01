@@ -260,6 +260,7 @@ class TestAccount : public Account {
 		int max_duration {0};
 		int ring_duration {0};
 		int response_delay {0};
+		int expected_duration {0};
 		bool rtp_stats {false};
 		bool late_start {false};
 		bool unregistering {false};

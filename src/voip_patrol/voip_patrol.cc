@@ -625,6 +625,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->expected_cause_code = expected_cause_code;
 		call->test->cancel_behavoir = cancel_behavoir;
 		call->test->fail_on_accept = fail_on_accept;
+		call->test->expected_duration = expected_duration;
 
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
 
@@ -814,7 +815,7 @@ void Test::update_result() {
 	if (fail_on_accept && type == "accept") {
 		res_text = "This call should not happen";
 	} else if (expected_duration && expected_duration != connect_duration) {
-		res_text = "Expected duration issues";
+		res_text = "Expected duration " + std::to_string(expected_duration) + " != " + std::to_string(connect_duration) + " actual duration";
 	} else if (max_duration && max_duration < connect_duration) {
 		res_text = "Connected duration issues";
 	} else if (call_count > 0) {

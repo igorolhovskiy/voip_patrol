@@ -113,6 +113,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("max_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("repeat", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("max_ring_duration", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("min_mos", false, APType::apt_float));
 	do_call_params.push_back(ActionParam("rtp_stats", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("late_start", false, APType::apt_bool));
@@ -150,6 +151,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("cancel", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("max_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("ring_duration", false, APType::apt_integer));
+	do_accept_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("response_delay", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("early_media", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("wait_until", false, APType::apt_string));
@@ -481,6 +483,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	int ring_duration {0};
 	int early_media {false};
 	int hangup_duration {0};
+	int expected_duration {0};
 	int re_invite_interval {0};
 	call_state_t wait_until {INV_STATE_NULL};
 	bool rtp_stats {false};
@@ -508,6 +511,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("label") == 0 && param.s_val.length() > 0) label = param.s_val;
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
 		else if (param.name.compare("ring_duration") == 0) ring_duration = param.i_val;
+		else if (param.name.compare("expected_duration") == 0) expected_duration = param.i_val;
 		else if (param.name.compare("early_media") == 0) early_media = param.b_val;
 		else if (param.name.compare("fail_on_accept") == 0) fail_on_accept = param.b_val;
 		//else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
@@ -634,6 +638,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->cancel_behavoir = cancel_behavoir;
 	acc->fail_on_accept	= fail_on_accept;
 	acc->account_name = account_name;
+	acc->expected_duration = expected_duration;
 }
 
 
@@ -693,7 +698,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("force_contact") == 0) force_contact = param.s_val;
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
 		else if (param.name.compare("max_ring_duration") == 0) max_ring_duration = param.i_val;
-		else if (param.name.compare("duration") == 0) expected_duration = param.i_val;
+		else if (param.name.compare("expected_duration") == 0) expected_duration = param.i_val;
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("repeat") == 0) repeat = param.i_val;

@@ -196,6 +196,7 @@ class Test {
 		int re_invite_next{0};
 		int re_invite_interval {0};
 		int setup_duration {0};
+		int expected_setup_duration {0};
 		int expected_duration {0};
 		int max_duration {0};
 		int ring_duration {0};
@@ -261,6 +262,7 @@ class TestAccount : public Account {
 		int ring_duration {0};
 		int response_delay {0};
 		int expected_duration {0};
+		int expected_setup_duration {0};
 		bool rtp_stats {false};
 		bool late_start {false};
 		bool unregistering {false};

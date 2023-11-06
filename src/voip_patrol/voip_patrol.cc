@@ -181,22 +181,22 @@ vp_call_param::vp_call_param(const SipTxOption &tx_option, const CallSetting &se
 	sdp = NULL;
 	if (sdp_str != "") {
 		pj_str_t dup_pj_sdp;
-		pj_str_t pj_sdp_str = {(char*)sdp_str.c_str(),
-			       (pj_ssize_t)sdp_str.size()};
-	pj_status_t status;
+		pj_str_t pj_sdp_str = {(char*)sdp_str.c_str(), (pj_ssize_t)sdp_str.size()};
+		pj_status_t status;
 
 		pj_strdup(pool, &dup_pj_sdp, &pj_sdp_str);
-		status = pjmedia_sdp_parse(pool, dup_pj_sdp.ptr,
-					dup_pj_sdp.slen, &sdp);
-	if (status != PJ_SUCCESS) {
-		PJ_PERROR(4,(THIS_FILE, status,
-			 "Failed to parse SDP for call param"));
-	}
+		status = pjmedia_sdp_parse(pool, dup_pj_sdp.ptr, dup_pj_sdp.slen, &sdp);
+
+		if (status != PJ_SUCCESS) {
+			PJ_PERROR(4,(THIS_FILE, status, "Failed to parse SDP for call param"));
+		}
 	}
 }
 
 void TestCall::hangup(const CallOpParam &prm) {
-		if (disconnecting) return;
+		if (disconnecting) {
+			return;
+		}
 		disconnecting = true;
 		LOG(logINFO) <<__FUNCTION__<<": [hangup]";
 		Call::hangup(prm);
@@ -634,6 +634,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->cancel_behavoir = cancel_behavoir;
 		call->test->fail_on_accept = fail_on_accept;
 		call->test->expected_duration = expected_duration;
+		call->test->expected_setup_duration = expected_setup_duration;
 
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
 
@@ -824,8 +825,10 @@ void Test::update_result() {
 		res_text = "This call should not happen";
 	} else if (expected_duration && expected_duration != connect_duration) {
 		res_text = "Expected duration " + std::to_string(expected_duration) + " != " + std::to_string(connect_duration) + " actual duration";
+	} else if (expected_setup_duration && expected_setup_duration != setup_duration) {
+		res_text = "Expected setup duration " + std::to_string(expected_setup_duration) + " != " + std::to_string(setup_duration) + " actual setup duration";
 	} else if (max_duration && max_duration < connect_duration) {
-		res_text = "Connected duration issues";
+		res_text = "Max call duration " + std::to_string(max_duration) + " < " + std::to_string(connect_duration) + " actual call duration";
 	} else if (call_count > 0) {
 		res_text = "Still " + std::to_string(call_count) + " calls left";
 	} else if (result_cause_code != 487 && cancel_behavoir.compare("force") == 0) {
@@ -925,6 +928,8 @@ void Test::update_result() {
 						"\"duration\": " + std::to_string(connect_duration) + ", "
 						"\"expected_duration\": " + std::to_string(expected_duration) + ", "
 						"\"max_duration\": " + std::to_string(max_duration) + ", "
+						"\"setup_duration\": " + std::to_string(setup_duration) + ", "
+						"\"expected_setup_duration\": " + std::to_string(expected_setup_duration) + ", "
 						"\"hangup_duration\": " + std::to_string(hangup_duration);
 	if (dtmf_recv.length() > 0)
 		result_line_json += ", \"dtmf_recv\": \""+dtmf_recv+"\"";

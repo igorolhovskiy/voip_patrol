@@ -333,6 +333,7 @@ DISCONNECTED
 | ---- | ---- | ----------- |
 | ring_duration | int | ringing duration in seconds |
 | expected_duration | int | expected duration of the call in seconds. Test considered failed if actual duration is different |
+| expected_setup_duration | int | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different |
 | early_media | bool | if `true` 183 with SDP and early media is used |
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | code | int | SIP cause code to return must be > `100` and < `700` |
@@ -379,6 +380,7 @@ DISCONNECTED
 | force_contact | string | local contact header will be overwritten by the given string |
 | max_ring_duration | int | max ringing duration in seconds before cancel |
 | expected_duration | int | expected duration of the call in seconds. Test considered failed if actual duration is different |
+| expected_setup_duration | int | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different |
 | hangup | int | call duration in second before hangup |
 | repeat | int | do this call multiple times |
 

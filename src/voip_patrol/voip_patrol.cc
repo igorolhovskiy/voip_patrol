@@ -426,7 +426,7 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 		// Problem could be on 183 - 4xx sequences, where RTP stream destroyed on 183, but real result is 4xx.
 		//test->update_result();
 	} catch (pj::Error& e)  {
-			LOG(logERROR) <<__FUNCTION__<<" error :" << e.status << std::endl;
+		LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 	}
 }
 
@@ -1697,9 +1697,11 @@ int main(int argc, char **argv){
 					continue;
 			}
 			pj_status_t status = pjsua_call_get_info(call->getId(), &pj_ci);
-			LOG(logINFO) << "disconnecting >>> call["<< call->getId() <<"]["<< call <<"] ";
+
+			LOG(logINFO) << __FUNCTION__ << " disconnecting >>> call[" << call->getId() << "][" << call << "] ";
+
 			if (status != PJ_SUCCESS) {
-				LOG(logINFO) << "can not get call info, removing call["<< call->getId() <<"]["<< call <<"] "<< config.removeCall(call);
+				LOG(logINFO) << __FUNCTION__ << " can not get call info, removing call["<< call->getId() <<"]["<< call <<"] "<< config.removeCall(call);
 				continue;
 			}
 			ci.fromPj(pj_ci);
@@ -1710,11 +1712,11 @@ int main(int argc, char **argv){
 				try {
 					call->hangup(prm);
 				} catch (pj::Error& e)  {
-					LOG(logERROR) <<__FUNCTION__<<" error :" << e.status;
+					LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 				}
 			} else {
-				// LOG(logINFO) << "removing call["<< call->getId() <<"]["<< call <<"] "<< config.removeCall(call);
-				LOG(logINFO) << "disconnected call["<< call->getId() <<"]["<< call <<"]";
+				LOG(logINFO) << __FUNCTION__ << " disconnected call["<< call->getId() <<"]["<< call <<"]";
+
 				pj_thread_sleep(500);
 			}
 		}

@@ -355,7 +355,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 					acc->setRegistration(false);
 					acc->unregistering = true;
 				} catch (pj::Error& e)  {
-					LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+					LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 				}
 			} else {
 				LOG(logINFO) << __FUNCTION__ << " register is not active";
@@ -868,7 +868,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			try {
 				call->makeCall("sip:"+callee+";transport=tls", prm, to_uri);
 			} catch (pj::Error& e)  {
-				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		} else if (transport == "sips") {
 			if (!to_uri.empty())
@@ -876,7 +876,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			try {
 				call->makeCall("sips:"+callee, prm, to_uri);
 			} catch (pj::Error& e)  {
-				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		} else if (transport == "tcp") {
 			if (!to_uri.empty())
@@ -884,7 +884,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			try {
 				call->makeCall("sip:"+callee+";transport=tcp", prm, to_uri);
 			} catch (pj::Error& e)  {
-				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		} else {
 			if (!to_uri.empty())
@@ -892,7 +892,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			try {
 				call->makeCall("sip:"+callee, prm, to_uri);
 			} catch (pj::Error& e)  {
-				LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		}
 		repeat--;
@@ -1231,7 +1231,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 								call->test->re_invite_next = call->test->re_invite_next + call->test->re_invite_interval;
 							} catch (pj::Error& e)  {
 								if (e.status != 171140) {
-									LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+									LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 								}
 							}
 						}
@@ -1245,7 +1245,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 								call->hangup(prm);
 							} catch (pj::Error& e)  {
 								if (e.status != 171140) {
-									LOG(logERROR) << __FUNCTION__ << " error :" << e.status << std::endl;
+									LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 								}
 							}
 						}

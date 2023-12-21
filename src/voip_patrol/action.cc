@@ -825,7 +825,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		}
 
 		if (!from.empty()) {
-			if (!((from.compare(0, 4, "sip:") == 0) || (from.compare(0 , 5 , "sips:") == 0))) {
+			if (!((from.find("sip:") != std::string::npos) || (from.find("sips:") == std::string::npos))) {
 				if (transport == "sips") {
 					from = "sips:" + from;
 				} else {

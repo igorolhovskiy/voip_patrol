@@ -785,7 +785,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		} else if (transport == "tls") {
 			if (config->transport_id_tls == -1) {
 				LOG(logERROR) << __FUNCTION__ << ": TLS transport not supported" ;
-				
+
 				return;
 			}
 			acc_cfg.idUri = "sip:" + account_uri;
@@ -826,7 +826,11 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 		if (!from.empty()) {
 			if (!((from.compare(0, 4, "sip:") == 0) || (from.compare(0 , 5 , "sips:") == 0))) {
-				from = "sip:" + from;
+				if (transport == 'sips') {
+					from = "sips:" + from;
+				} else {
+					from = "sip:" + from;
+				}
 			}
 			
 			acc_cfg.idUri = from;

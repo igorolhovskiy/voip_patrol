@@ -367,11 +367,11 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 				// acc_inf = acc->getInfo();
 			}
 			if (acc->unregistering) {
-				LOG(logERROR) << __FUNCTION__ << " error : unregister failed/timeout"<< std::endl;
+				LOG(logERROR) << __FUNCTION__ << " error : unregister failed/timeout" << std::endl;
 			}
 			return;
 		}
-		LOG(logINFO) << __FUNCTION__ << "unregister: account not found (" << account_full_name << ")";
+		LOG(logINFO) << __FUNCTION__ << "unregister: account not found (" << account_full_name << ")" << std::endl;
 	}
 
 	Test *test = new Test(config, type);
@@ -391,7 +391,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	if (reg_id != "" || instance_id != "") {
 		LOG(logINFO) << __FUNCTION__ << " reg_id:" << reg_id << " instance_id:" << instance_id;
 		if (transport == "udp") {
-			LOG(logINFO) << __FUNCTION__ << " oubound rfc5626 not supported on transport UDP";
+			LOG(logINFO) << __FUNCTION__ << " oubound rfc5626 not supported on transport UDP" << std::endl;
 		} else {
 			acc_cfg.natConfig.sipOutboundUse = true;
 			if (reg_id != "")
@@ -407,11 +407,15 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	}
 
 	if (transport == "tcp") {
-		LOG(logINFO) << __FUNCTION__ << " SIP TCP";
 		acc_cfg.idUri = "sip:" + account_aor + ";transport=tcp";
 		acc_cfg.regConfig.registrarUri = "sip:" + registrar + ";transport=tcp";
+
+		LOG(logINFO) << __FUNCTION__ << " SIP TCP idUri:<" << acc_cfg.idUri << "> registrarUri:<" << acc_cfg.regConfig.registrarUri << ">" << std::endl;
+
 		if (!proxy.empty()) {
 			acc_cfg.sipConfig.proxies.push_back("sip:" + proxy + ";transport=tcp");
+
+			LOG(logINFO) << __FUNCTION__ << " SIP TCP proxies:<sip:" << proxy  << ";transport=tcp>" << std::endl;
 		}
 	} else if (transport == "tls") {
 		if (config->transport_id_tls == -1) {
@@ -420,26 +424,41 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 		}
 		acc_cfg.idUri = "sip:" + account_aor + ";transport=tls";
 		acc_cfg.regConfig.registrarUri = "sip:" + registrar + ";transport=tls";
+
+		LOG(logINFO) << __FUNCTION__ << " SIP TLS idUri:<" << acc_cfg.idUri << "> registrarUri:<" << acc_cfg.regConfig.registrarUri << ">" << std::endl;
+
 		if (!proxy.empty()) {
 			acc_cfg.sipConfig.proxies.push_back("sip:" + proxy + ";transport=tls");
+
+			LOG(logINFO) << __FUNCTION__ << " SIP TLS proxies:<sip:" << proxy  << ";transport=tls>" << std::endl;
 		}
 	} else if (transport == "sips") {
 		if (config->transport_id_tls == -1) {
 			LOG(logERROR) << __FUNCTION__ << " TLS transport not supported";
+
 			return;
 		}
 		acc_cfg.idUri = "sips:" + account_aor;
 		acc_cfg.regConfig.registrarUri = "sips:" + registrar;
+
+		LOG(logINFO) << __FUNCTION__ << " SIPS idUri:<" << acc_cfg.idUri << "> registrarUri:<" << acc_cfg.regConfig.registrarUri << ">" << std::endl;
+
 		if (!proxy.empty()) {
 			acc_cfg.sipConfig.proxies.push_back("sips:" + proxy);
+
+			LOG(logINFO) << __FUNCTION__ << " SIP TLS proxies:<sips:" << proxy << ">" << std::endl;
 		}
-		LOG(logINFO) << __FUNCTION__ << " SIPS/TLS URI Scheme";
 	} else {
-		LOG(logINFO) << __FUNCTION__ << " SIP UDP";
 		acc_cfg.idUri = "sip:" + account_aor;
 		acc_cfg.regConfig.registrarUri = "sip:" + registrar;
-		if (!proxy.empty())
+
+		LOG(logINFO) << __FUNCTION__ << " SIP UDP idUri:<" << acc_cfg.idUri << "> registrarUri:<" << acc_cfg.regConfig.registrarUri << ">" << std::endl;
+
+		if (!proxy.empty()) {
 			acc_cfg.sipConfig.proxies.push_back("sip:" + proxy);
+
+			LOG(logINFO) << __FUNCTION__ << " SIP UDP proxies:<sip:" << proxy << ">" << std::endl;
+		}
 	}
 	acc_cfg.sipConfig.authCreds.push_back(AuthCredInfo("digest", realm, auth_username, 0, password));
 	acc_cfg.natConfig.contactRewriteUse = rewrite_contact;
@@ -449,16 +468,19 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	if (srtp.find("dtls") != std::string::npos) {
 		acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
 		acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_DTLS_SRTP);
+
 		LOG(logINFO) << __FUNCTION__ << " adding DTLS-SRTP capabilities";
 	}
 	if (srtp.find("sdes") != std::string::npos) {
 		acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
 		acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_SDES);
+
 		LOG(logINFO) << __FUNCTION__ << " adding SDES capabilities";
 	}
 	if (srtp.find("force") != std::string::npos) {
 		acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_MANDATORY;
-		LOG(logINFO) << __FUNCTION__ << " Forcing SRTP";
+
+		LOG(logINFO) << __FUNCTION__ << " Forcing encryption";
 	}
 
 	if (!acc) {
@@ -585,16 +607,19 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		if (srtp.find("dtls") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_DTLS_SRTP);
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
+
 			LOG(logINFO) << __FUNCTION__ << " adding DTLS-SRTP capabilities";
 		}
 		if (srtp.find("sdes") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_SDES);
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
+
 			LOG(logINFO) << __FUNCTION__ << " adding SDES capabilities";
 		}
 		if (srtp.find("force") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_MANDATORY;
-			LOG(logINFO) << __FUNCTION__ << " Forcing SRTP";
+
+			LOG(logINFO) << __FUNCTION__ << " Forcing encryption";
 		}
 
 		if (acc) {
@@ -749,59 +774,95 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 		if (transport == "tcp") {
 			acc_cfg.idUri = "sip:" + account_uri;
-			if (!proxy.empty())
+
+			LOG(logINFO) << __FUNCTION__ << " Account TCP idUri: <" << acc_cfg.idUri << ">" << std::endl;
+
+			if (!proxy.empty()) {
 				acc_cfg.sipConfig.proxies.push_back("sip:" + proxy + ";transport=tcp");
+
+				LOG(logINFO) << __FUNCTION__ << " Account TCP proxies: <sip:" << proxy << ";transport=tcp>" << std::endl;
+			}
 		} else if (transport == "tls") {
 			if (config->transport_id_tls == -1) {
 				LOG(logERROR) << __FUNCTION__ << ": TLS transport not supported" ;
+				
 				return;
 			}
-			acc_cfg.idUri = "tls:" + account_uri;
-			if (!proxy.empty())
+			acc_cfg.idUri = "sip:" + account_uri;
+
+			LOG(logINFO) << __FUNCTION__ << " Account TLS idUri: <" << acc_cfg.idUri << ">" << std::endl;
+
+			if (!proxy.empty()) {
 				acc_cfg.sipConfig.proxies.push_back("sip:" + proxy + ";transport=tls");
+
+				LOG(logINFO) << __FUNCTION__ << " Account TLS proxies: <sip:" << proxy << ";transport=tls>" << std::endl;
+			}
 		} else if (transport == "sips") {
 			if (config->transport_id_tls == -1) {
 				LOG(logERROR) << __FUNCTION__ << ": sips(TLS) transport not supported" ;
+
 				return;
 			}
 			acc_cfg.idUri = "sips:" + account_uri;
-			if (!proxy.empty())
+
+			LOG(logINFO) << __FUNCTION__ << " Account SIPS idUri: <" << acc_cfg.idUri << ">" << std::endl;
+
+			if (!proxy.empty()) {
 				acc_cfg.sipConfig.proxies.push_back("sips:" + proxy);
+
+				LOG(logINFO) << __FUNCTION__ << " Account SIPS proxies: <sips:" << proxy << ">" << std::endl;
+			}
 		} else {
 			acc_cfg.idUri = "sip:" + account_uri;
-			if (!proxy.empty())
+
+			LOG(logINFO) << __FUNCTION__ << " Account UDP idUri: <" << acc_cfg.idUri << ">" << std::endl;
+
+			if (!proxy.empty()) {
 				acc_cfg.sipConfig.proxies.push_back("sip:" + proxy);
+
+				LOG(logINFO) << __FUNCTION__ << " Account UDP proxies: <sip:" << proxy << ">" << std::endl;
+			}
 		}
 
 		if (!from.empty()) {
+			if (!((from.compare(0, 4, "sip:") == 0) || (from.compare(0 , 5 , "sips:") == 0))) {
+				from = "sip:" + from;
+			}
+			
 			acc_cfg.idUri = from;
+
+			LOG(logINFO) << __FUNCTION__ << " Account idUri: <" << acc_cfg.idUri << ">" << std::endl;
 		}
 
 		if (!username.empty() || !auth_username.empty()) {
 			if (password.empty()) {
 				LOG(logERROR) << __FUNCTION__ << ": realm specified missing password";
+
 				return;
 			}
 			if (auth_username.empty()) {
 				auth_username = username;
 			}
-			acc_cfg.sipConfig.authCreds.push_back( AuthCredInfo("digest", realm, auth_username, 0, password) );
+			acc_cfg.sipConfig.authCreds.push_back(AuthCredInfo("digest", realm, auth_username, 0, password));
 		}
 
 		// SRTP
 		if (srtp.find("dtls") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_DTLS_SRTP);
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
+
 			LOG(logINFO) << __FUNCTION__ << " adding DTLS-SRTP capabilities";
 		}
 		if (srtp.find("sdes") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_SDES);
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
+
 			LOG(logINFO) << __FUNCTION__ << " adding SDES capabilities";
 		}
 		if (srtp.find("force") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_MANDATORY;
-			LOG(logINFO) << __FUNCTION__ << " Forcing SRTP";
+
+			LOG(logINFO) << __FUNCTION__ << " Forcing encryption";
 		}
 
 		// FIXME
@@ -810,6 +871,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		// }
 
 		acc = config->createAccount(acc_cfg);
+
 		LOG(logINFO) << __FUNCTION__ << ": session timer["<<timer<<"] :"<< acc_cfg.callConfig.timerUse << " TURN: "<< acc_cfg.natConfig.turnEnabled;
 	}
 

@@ -926,42 +926,49 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 		prm.opt.audioCount = 1;
 		prm.opt.videoCount = 0;
+
 		LOG(logINFO) << "call->test:" << test << " " << call->test->type;
-		LOG(logINFO) << "calling :" +callee;
+		LOG(logINFO) << "calling :" << callee;
+		
 		if (transport == "tls") {
-			if (!to_uri.empty())
-					to_uri = "sip:"+to_uri+";transport=tls";
+			if (!to_uri.empty() && to_uri.substr(0, 3) != "sip") {
+				to_uri = "sip:" + to_uri + ";transport=tls";
+			}
 			try {
-				call->makeCall("sip:"+callee+";transport=tls", prm, to_uri);
+				call->makeCall("sip:" + callee + ";transport=tls", prm, to_uri);
 			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		} else if (transport == "sips") {
-			if (!to_uri.empty())
-					to_uri = "sips:"+to_uri;
+			if (!to_uri.empty() && to_uri.substr(0, 4) != "sips") {
+				to_uri = "sips:" + to_uri;
+			}
 			try {
-				call->makeCall("sips:"+callee, prm, to_uri);
+				call->makeCall("sips:" + callee, prm, to_uri);
 			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		} else if (transport == "tcp") {
-			if (!to_uri.empty())
-				to_uri = "sip:"+to_uri+";transport=tcp";
+			if (!to_uri.empty() && to_uri.substr(0, 3) != "sip") {
+				to_uri = "sip:" + to_uri + ";transport=tcp";
+			}
 			try {
-				call->makeCall("sip:"+callee+";transport=tcp", prm, to_uri);
+				call->makeCall("sip:" + callee + ";transport=tcp", prm, to_uri);
 			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
+		// Default UDP transport
 		} else {
-			if (!to_uri.empty())
-					to_uri = "sip:"+to_uri;
+			if (!to_uri.empty() && to_uri.substr(0, 3) != "sip") {
+				to_uri = "sip:" + to_uri;
+			}
 			try {
-				call->makeCall("sip:"+callee, prm, to_uri);
+				call->makeCall("sip:" + callee, prm, to_uri);
 			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		}
-		repeat--;
+		repeat -= 1;
 	} while (repeat >= 0);
 }
 

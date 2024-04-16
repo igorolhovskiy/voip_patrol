@@ -269,6 +269,7 @@ class TestAccount : public Account {
 		std::string force_contact;
 		bool early_media {false};
 		bool fail_on_accept {false};
+		bool disable_turn {false};
 		std::string recording {""};
 		SipHeaderVector x_headers;
 		int call_count {-1};

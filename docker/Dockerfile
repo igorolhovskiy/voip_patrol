@@ -5,7 +5,7 @@ RUN echo "installing dependencies" \
 	&& apt-get -y install libssl-dev git libopus-dev libsrtp2-dev
 
 RUN echo "building VoIP Patrol" \
-	&& mkdir /git && cd /git && git clone -b srtp_add https://github.com/igorolhovskiy/voip_patrol.git \
+	&& mkdir /git && cd /git && git clone -b https://github.com/igorolhovskiy/voip_patrol.git \
 	&& cd voip_patrol \
 	&& git submodule update --init \
 	&& cd pjproject && ./configure --disable-libwebrtc --disable-opencore-amr \

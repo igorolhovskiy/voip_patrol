@@ -68,8 +68,12 @@ string Action::get_env(string env) {
 }
 
 bool Action::set_param(ActionParam &param, const char *val) {
-	if (!val) return false;
+	if (!val) {
+		return false;
+	}
+
 	LOG(logINFO) << __FUNCTION__ << " param name:" << param.name << " val:" << val;
+
 	if (param.type == APType::apt_bool) {
 		if( strcmp(val, "false") ==  0 )  param.b_val = false;
 		else param.b_val = true;
@@ -90,7 +94,7 @@ bool Action::set_param(ActionParam &param, const char *val) {
 bool Action::set_param_by_name(vector<ActionParam> *params, const string& name, const char *val) {
 	for (auto &param : *params) {
 		if (param.name.compare(name) == 0) {
-				return set_param(param, val);
+			return set_param(param, val);
 		}
 	}
 	return false;
@@ -128,6 +132,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("proxy", false, APType::apt_string));
+	do_call_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	// do_register
 	do_register_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("label", false, APType::apt_string));
@@ -145,6 +150,7 @@ void Action::init_actions_params() {
 	do_register_params.push_back(ActionParam("instance_id", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("srtp", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("rewrite_contact", true, APType::apt_bool));
+	do_register_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	// do_accept
 	do_accept_params.push_back(ActionParam("match_account", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("transport", false, APType::apt_string));
@@ -172,6 +178,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("fail_on_accept", false, APType::apt_bool));
+	do_accept_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
 	// do_wait
 	do_wait_params.push_back(ActionParam("ms", false, APType::apt_integer));
@@ -301,6 +308,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	int expected_cause_code {200};
 	bool unregister {false};
 	bool rewrite_contact {false};
+	bool disable_turn {false};
 
 	for (auto param : params) {
 		if (param.name.compare("transport") == 0) transport = param.s_val;
@@ -319,6 +327,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 		else if (param.name.compare("rewrite_contact") == 0) rewrite_contact = param.b_val;
 		else if (param.name.compare("expected_cause_code") == 0) expected_cause_code = param.i_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
+		else if (param.name.compare("disable_turn") == 0) disable_turn = param.b_val;
 	}
 
 	if (username.empty() || password.empty() || registrar.empty()) {
@@ -386,7 +395,14 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	LOG(logINFO) << __FUNCTION__ << " >> sip:" + account_full_name;
 
 	AccountConfig acc_cfg;
-	setTurnConfig(acc_cfg, config);
+
+	if (!disable_turn) {
+		LOG(logINFO) << __FUNCTION__ << ": do_register: turn: " << config->turn_config.enabled << "\n";
+
+		setTurnConfig(acc_cfg, config);
+	} else {
+		LOG(logINFO) << __FUNCTION__ << ": do_register: turn: explicitly disabled \n";
+	}
 
 	if (reg_id != "" || instance_id != "") {
 		LOG(logINFO) << __FUNCTION__ << " reg_id:" << reg_id << " instance_id:" << instance_id;
@@ -514,6 +530,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	bool rtp_stats {false};
 	bool late_start {false};
 	bool fail_on_accept {false};
+	bool disable_turn {false};
 	string srtp {"none"};
 	string force_contact {};
 	int code {200};
@@ -540,6 +557,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("expected_setup_duration") == 0) expected_setup_duration = param.i_val;
 		else if (param.name.compare("early_media") == 0) early_media = param.b_val;
 		else if (param.name.compare("fail_on_accept") == 0) fail_on_accept = param.b_val;
+		else if (param.name.compare("disable_turn") == 0) disable_turn = param.b_val;
 		//else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
 		else if (param.name.compare("rtp_stats") == 0) rtp_stats = param.b_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
@@ -565,7 +583,13 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	TestAccount *acc = config->findAccount(account_name);
 	if (!acc || !force_contact.empty()) {
 		AccountConfig acc_cfg;
-		setTurnConfig(acc_cfg, config);
+		if (!disable_turn) {
+			LOG(logINFO) << __FUNCTION__ << ": do_accept: turn: " << config->turn_config.enabled << "\n";
+
+			setTurnConfig(acc_cfg, config);
+		} else {
+			LOG(logINFO) << __FUNCTION__ << ": do_accept: turn: explicitly disabled\n";
+		}
 
 		if (!force_contact.empty()){
 			LOG(logINFO) << __FUNCTION__ << ":do_accept:force_contact:" << force_contact << "\n";
@@ -666,6 +690,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->force_contact = force_contact;
 	acc->cancel_behavoir = cancel_behavoir;
 	acc->fail_on_accept	= fail_on_accept;
+	acc->disable_turn = disable_turn;
 	acc->account_name = account_name;
 	acc->expected_duration = expected_duration;
 	acc->expected_setup_duration = expected_setup_duration;
@@ -702,6 +727,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	string recording {};
 	bool rtp_stats {false};
 	bool late_start {false};
+	bool disable_turn {false};
 	string force_contact {};
 
 	for (auto param : params) {
@@ -725,6 +751,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
 		else if (param.name.compare("rtp_stats") == 0) rtp_stats = param.b_val;
 		else if (param.name.compare("late_start") == 0) late_start = param.b_val;
+		else if (param.name.compare("disable_turn") == 0) disable_turn = param.b_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 		else if (param.name.compare("force_contact") == 0) force_contact = param.s_val;
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
@@ -751,8 +778,14 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	TestAccount* acc = config->findAccount(account_uri);
 	if (!acc) {
 		AccountConfig acc_cfg;
-		LOG(logINFO) << __FUNCTION__ << ":do_call:turn:" << config->turn_config.enabled << "\n";
-		setTurnConfig(acc_cfg, config);
+
+		if (!disable_turn) {
+			LOG(logINFO) << __FUNCTION__ << ": do_call: turn: " << config->turn_config.enabled << "\n";
+
+			setTurnConfig(acc_cfg, config);
+		} else {
+			LOG(logINFO) << __FUNCTION__ << ": do_call: turn: explicitly disabled\n";
+		}
 
 		if (force_contact != ""){
 			LOG(logINFO) << __FUNCTION__ << ":do_call:force_contact:" << force_contact << "\n";
@@ -832,7 +865,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 					from = "sip:" + from;
 				}
 			}
-			
+
 			acc_cfg.idUri = from;
 
 			LOG(logINFO) << __FUNCTION__ << " Account idUri: <" << acc_cfg.idUri << ">" << std::endl;
@@ -929,7 +962,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 		LOG(logINFO) << "call->test:" << test << " " << call->test->type;
 		LOG(logINFO) << "calling :" << callee;
-		
+
 		if (transport == "tls") {
 			if (!to_uri.empty() && to_uri.substr(0, 3) != "sip") {
 				to_uri = "sip:" + to_uri + ";transport=tls";

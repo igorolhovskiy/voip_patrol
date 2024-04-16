@@ -352,6 +352,7 @@ DISCONNECTED
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory |
 | cancel | string | `optional` - mark the test passed, if the call was canceled by the caller before answer, `force` - mark test passed ONLY if the call was canceled by the caller. Make sure that you set `ring_duration` > 0 |
 | fail_on_accept | bool | If `true` - than accepting this call counts as a failed test |
+| disable_turn | bool | If `true` - global turn configuration is ignored |
 | hangup | int | call duration in second before hangup |
 
 
@@ -377,6 +378,7 @@ DISCONNECTED
 | min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory. Note, if you don't specify `force`, call would be made with plain RTP |
 | late_start | bool | if `true` no SDP will be included in the INVITE and will result in a late offer in 200 OK/ACK |
+| disable_turn | bool | If `true` - global turn configuration is ignored |
 | force_contact | string | local contact header will be overwritten by the given string |
 | max_ring_duration | int | max ringing duration in seconds before cancel |
 | expected_duration | int | expected duration of the call in seconds. Test considered failed if actual duration is different |
@@ -399,6 +401,7 @@ DISCONNECTED
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add "DTLS-SRTP" support, `force` - make SRTP mandatory. Used for incoming calls to this account |
+| disable_turn | bool | If `true` - global turn configuration is ignored. Used for incoming calls to this account |
 | unregister | bool | unregister the account `<usename@registrar;transport=x>` |
 | reg_id | int | if present outbound and other related parameters will be added (see [RFC5626](https://datatracker.ietf.org/doc/html/rfc5626)) |
 | instance_id | int | same as `reg_id`, if not present, it will be generated automatically |

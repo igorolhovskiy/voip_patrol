@@ -96,6 +96,8 @@ typedef struct turn_config {
 	std::string username;
 	std::string password;
 	bool password_hashed;
+	bool disable_ice;
+	bool ice_trickle;
 } turn_config_t;
 
 class Config {

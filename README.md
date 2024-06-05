@@ -510,14 +510,16 @@ DISCONNECTED
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| enabled | bool | if "true" turn server usage will be enabled |
-| server | string | turn server URI or IP:port |
-| username | string | turn server username |
-| password | string | turn server password |
-| password_hashed | bool | if "true" us hashed password, default plain password |
+| enabled | bool | if "true" STUN/TURN/ICE server usage will be enabled |
+| server | string | STUN/TURN server URI or IP:port |
+| username | string | TURN server username |
+| password | string | TURN server password |
+| password_hashed | bool | if "true" use hashed password, default plain password |
 | sip_stun_use | bool | if "true" SIP reflective IP is use with signaling |
 | media_stun_use | bool | if "true" STUN reflective IP is use with media/SDP |
 | stun_only | bool | if "true" TURN and ICE are disabled and only STUN is use |
+| disable_ice | bool | if "true" ICE mechanism is disabled |
+| ice_trickle | bool | if "true" Trickle ICE mechanism is used |
 
 ### using env variable in scenario actions parameters
 Any value starting with `VP_ENV` will be replaced by the envrironment variable of the same name.

@@ -200,6 +200,8 @@ void Action::init_actions_params() {
 	do_turn_params.push_back(ActionParam("stun_only", false, APType::apt_bool));
 	do_turn_params.push_back(ActionParam("sip_stun_use", false, APType::apt_bool));
 	do_turn_params.push_back(ActionParam("media_stun_use", false, APType::apt_bool));
+	do_turn_params.push_back(ActionParam("disable_ice", false, APType::apt_bool));
+	do_turn_params.push_back(ActionParam("ice_trickle", false, APType::apt_bool));
 	// do_message
 	do_message_params.push_back(ActionParam("from", true, APType::apt_string));
 	do_message_params.push_back(ActionParam("to_uri", true, APType::apt_string));
@@ -216,30 +218,40 @@ void Action::init_actions_params() {
 	do_accept_message_params.push_back(ActionParam("message_count", false, APType::apt_integer));
 }
 
-void setTurnConfig(AccountConfig &acc_cfg, Config *cfg) {
+void setTurnConfigAccount(AccountConfig &acc_cfg, Config *cfg, bool disable_turn) {
 	turn_config_t *turn_config = &cfg->turn_config;
-	LOG(logINFO) << __FUNCTION__ << " enabled:"<<turn_config->enabled<<"["<<turn_config->username<<":"<<turn_config->password<<"]hashed:"<<turn_config->password_hashed;
-	if (turn_config->enabled) {
-		acc_cfg.natConfig.turnEnabled = true;
-		acc_cfg.natConfig.turnServer = turn_config->server;
-		acc_cfg.natConfig.turnConnType = PJ_TURN_TP_UDP;
-		acc_cfg.natConfig.turnUserName = turn_config->username;
-		if (turn_config->password_hashed) {
-			acc_cfg.natConfig.turnPasswordType = PJ_STUN_PASSWD_HASHED;
-		} else {
-			acc_cfg.natConfig.turnPasswordType = PJ_STUN_PASSWD_PLAIN;
-		}
-		acc_cfg.natConfig.turnPassword = turn_config->password;
-		acc_cfg.natConfig.iceEnabled = true;
-		if (turn_config->sip_stun_use) {
-			acc_cfg.natConfig.sipStunUse = PJSUA_STUN_USE_DEFAULT;
-		}
-		if (turn_config->media_stun_use) {
-			acc_cfg.natConfig.mediaStunUse = PJSUA_STUN_USE_DEFAULT;
-		}
-	} else if (turn_config->stun_only) {
+
+	if (!turn_config->enabled) {
+		LOG(logINFO) <<__FUNCTION__<<" STUN/TURN/ICE: config globally disabled" << std::endl;
+
+		acc_cfg.natConfig.turnEnabled = false;
+		acc_cfg.natConfig.iceEnabled = false;
+
+		return;
+	}
+
+	if (disable_turn) {
+		LOG(logINFO) <<__FUNCTION__<<" Explicitly disable STUN/TURN/ICE for this account";
+
+		acc_cfg.natConfig.sipStunUse = PJSUA_STUN_USE_DISABLED;
+		acc_cfg.natConfig.mediaStunUse = PJSUA_STUN_USE_DISABLED;
+		acc_cfg.natConfig.turnEnabled = false;
+		acc_cfg.natConfig.iceEnabled = false;
+
+		return;
+	}
+
+	if (turn_config->stun_only) {
+
+		char* srv_name_tmp = (char*)(turn_config->server).data();
+
+		pj_str_t srv_list[] = { pj_str(srv_name_tmp) };
+		pjsua_update_stun_servers(1, srv_list, 1);
+
+		LOG(logINFO) <<__FUNCTION__<<" STUN only: pushing " << turn_config->server << " as a STUN server";
+
 		if (!turn_config->sip_stun_use && turn_config->media_stun_use) {
-			LOG(logINFO) <<__FUNCTION__<<" STUN: enabled without SIP or Media";
+			LOG(logINFO) <<__FUNCTION__<<" STUN only: enabled without SIP or Media";
 		}
 
 		if (turn_config->sip_stun_use) {
@@ -254,19 +266,37 @@ void setTurnConfig(AccountConfig &acc_cfg, Config *cfg) {
 		}
 		acc_cfg.natConfig.sdpNatRewriteUse = false;
 		acc_cfg.natConfig.turnEnabled = false;
-		acc_cfg.natConfig.turnServer = turn_config->server;
-		acc_cfg.natConfig.turnConnType = PJ_TURN_TP_UDP;
-		acc_cfg.natConfig.turnUserName = turn_config->username;
-		if (turn_config->password_hashed) {
-			acc_cfg.natConfig.turnPasswordType = PJ_STUN_PASSWD_HASHED;
-		} else {
-			acc_cfg.natConfig.turnPasswordType = PJ_STUN_PASSWD_PLAIN;
-		}
-		acc_cfg.natConfig.turnPassword = turn_config->password;
+
+		return;
+	}
+
+	// Here we should have full TURN config
+	LOG(logINFO) <<__FUNCTION__<<" STUN/TURN/ICE: enabling for this account";
+
+	acc_cfg.natConfig.turnEnabled = true;
+	acc_cfg.natConfig.iceEnabled = true;
+	acc_cfg.natConfig.iceAggressiveNomination = true;
+	acc_cfg.natConfig.turnServer = turn_config->server;
+	acc_cfg.natConfig.turnUserName = turn_config->username;
+
+	acc_cfg.natConfig.turnPassword = turn_config->password;
+	acc_cfg.natConfig.turnPasswordType = PJ_STUN_PASSWD_PLAIN;
+	if (turn_config->password_hashed) {
+		acc_cfg.natConfig.turnPasswordType = PJ_STUN_PASSWD_HASHED;
+	}
+
+	// ICE for this account
+	if (turn_config->disable_ice) {
+		LOG(logINFO) << __FUNCTION__ << " disabling ICE for this account";
+
 		acc_cfg.natConfig.iceEnabled = false;
-	} else {
-		acc_cfg.natConfig.turnEnabled = false;
-		acc_cfg.natConfig.iceEnabled = false;
+	}
+
+	if (turn_config->ice_trickle) {
+		LOG(logINFO) << __FUNCTION__ << " enabling Tricke ICE for this account";
+
+		acc_cfg.natConfig.iceTrickle = PJ_ICE_SESS_TRICKLE_FULL;
+		acc_cfg.natConfig.iceAggressiveNomination = false;
 	}
 
 // ret.ice_cfg_use = PJSUA_ICE_CONFIG_USE_CUSTOM;
@@ -278,16 +308,6 @@ void setTurnConfig(AccountConfig &acc_cfg, Config *cfg) {
 // ret.ice_cfg.ice_no_rtcp = natConfig.iceNoRtcp;
 // ret.ice_cfg.ice_always_update = natConfig.iceAlwaysUpdate;
 }
-
-// void setTurnConfigSRTP(AccountConfig &acc_cfg, Config *cfg) {
-// 	turn_config_t *turn_config = &cfg->turn_config;
-// 	if (turn_config->enabled && !turn_config->stun_only) {
-// 		LOG(logINFO) << __FUNCTION__ << " Adjusting TURN config for SRTP";
-// 		acc_cfg.natConfig.iceEnabled = true;
-// 		acc_cfg.natConfig.iceTrickle = PJ_ICE_SESS_TRICKLE_FULL;
-// 		acc_cfg.natConfig.iceAggressiveNomination = true;
-// 	}
-// }
 
 void Action::do_register(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const SipHeaderVector &x_headers) {
 	string type {"register"};
@@ -396,13 +416,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 
 	AccountConfig acc_cfg;
 
-	if (!disable_turn) {
-		LOG(logINFO) << __FUNCTION__ << ": do_register: turn: " << config->turn_config.enabled << "\n";
-
-		setTurnConfig(acc_cfg, config);
-	} else {
-		LOG(logINFO) << __FUNCTION__ << ": do_register: turn: explicitly disabled \n";
-	}
+	setTurnConfigAccount(acc_cfg, config, disable_turn);
 
 	if (reg_id != "" || instance_id != "") {
 		LOG(logINFO) << __FUNCTION__ << " reg_id:" << reg_id << " instance_id:" << instance_id;
@@ -583,13 +597,8 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	TestAccount *acc = config->findAccount(account_name);
 	if (!acc || !force_contact.empty()) {
 		AccountConfig acc_cfg;
-		if (!disable_turn) {
-			LOG(logINFO) << __FUNCTION__ << ": do_accept: turn: " << config->turn_config.enabled << "\n";
 
-			setTurnConfig(acc_cfg, config);
-		} else {
-			LOG(logINFO) << __FUNCTION__ << ": do_accept: turn: explicitly disabled\n";
-		}
+		setTurnConfigAccount(acc_cfg, config, disable_turn);
 
 		if (!force_contact.empty()){
 			LOG(logINFO) << __FUNCTION__ << ":do_accept:force_contact:" << force_contact << "\n";
@@ -779,13 +788,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	if (!acc) {
 		AccountConfig acc_cfg;
 
-		if (!disable_turn) {
-			LOG(logINFO) << __FUNCTION__ << ": do_call: turn: " << config->turn_config.enabled << "\n";
-
-			setTurnConfig(acc_cfg, config);
-		} else {
-			LOG(logINFO) << __FUNCTION__ << ": do_call: turn: explicitly disabled\n";
-		}
+		setTurnConfigAccount(acc_cfg, config, disable_turn);
 
 		if (force_contact != ""){
 			LOG(logINFO) << __FUNCTION__ << ":do_call:force_contact:" << force_contact << "\n";
@@ -902,11 +905,6 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			LOG(logINFO) << __FUNCTION__ << " Forcing encryption";
 		}
 
-		// FIXME
-		// if (acc_cfg.mediaConfig.srtpUse == PJMEDIA_SRTP_OPTIONAL || acc_cfg.mediaConfig.srtpUse == PJMEDIA_SRTP_MANDATORY) {
-		// 	setTurnConfigSRTP(acc_cfg, config);
-		// }
-
 		acc = config->createAccount(acc_cfg);
 
 		LOG(logINFO) << __FUNCTION__ << ": session timer["<<timer<<"] :"<< acc_cfg.callConfig.timerUse << " TURN: "<< acc_cfg.natConfig.turnEnabled;
@@ -1014,6 +1012,9 @@ void Action::do_turn(const vector<ActionParam> &params) {
 	bool stun_only {false};
 	bool sip_stun_use {false};
 	bool media_stun_use {false};
+	bool disable_ice {false};
+	bool ice_trickle {false};
+
 	for (auto param : params) {
 		if (param.name.compare("enabled") == 0) enabled = param.b_val;
 		else if (param.name.compare("server") == 0) server = param.s_val;
@@ -1023,8 +1024,11 @@ void Action::do_turn(const vector<ActionParam> &params) {
 		else if (param.name.compare("sip_stun_use") == 0) sip_stun_use = param.b_val;
 		else if (param.name.compare("media_stun_use") == 0) media_stun_use = param.b_val;
 		else if (param.name.compare("stun_only") == 0) stun_only = param.b_val;
+		else if (param.name.compare("disable_ice") == 0) disable_ice = param.b_val;
+		else if (param.name.compare("ice_trickle") == 0) ice_trickle = param.b_val;
 	}
 	LOG(logINFO) << __FUNCTION__ << " enabled["<<enabled<<"] server["<<server<<"] username["<<username<<"] password["<<password<<"]:"<<password_hashed;
+
 	config->turn_config.enabled = enabled;
 	config->turn_config.server = server;
 	config->turn_config.password_hashed = password_hashed;
@@ -1035,6 +1039,8 @@ void Action::do_turn(const vector<ActionParam> &params) {
 	config->turn_config.media_stun_use = media_stun_use;
 	config->turn_config.sip_stun_use = sip_stun_use;
 	config->turn_config.stun_only = stun_only;
+	config->turn_config.disable_ice = disable_ice;
+	config->turn_config.ice_trickle = ice_trickle;
 }
 
 

@@ -1156,7 +1156,14 @@ TestAccount* Config::createAccount(AccountConfig acc_cfg) {
 	accounts.push_back(account);
 	account->config = this;
 	acc_cfg.mediaConfig.transportConfig.port = rtp_cfg.port;
-	LOG(logINFO) << __FUNCTION__ << " rtp start port:"<< rtp_cfg.port;
+
+	if (rtp_cfg.port_range == 0 || rtp_cfg.port_range < rtp_cfg.port) {
+		acc_cfg.mediaConfig.transportConfig.portRange = rtp_cfg.port + 10000;
+		acc_cfg.mediaConfig.transportConfig.portRange = rtp_cfg.port_range;
+	}
+
+	LOG(logINFO) << __FUNCTION__ << " rtp port range: " << rtp_cfg.port << "-" << acc_cfg.mediaConfig.transportConfig.portRange;
+
 	acc_cfg.mediaConfig.transportConfig.boundAddress = ip_cfg.bound_address;
 	acc_cfg.mediaConfig.transportConfig.publicAddress = ip_cfg.public_address;
 	if (ip_cfg.public_address != "")
@@ -1535,8 +1542,9 @@ int main(int argc, char **argv){
             " --tcp / --udp                     Only listen to TCP/UDP    \n"\
             " --ip-addr <IP>                    Use the specifed address as SIP and RTP addresses\n"\
             " --bound-addr <IP>                 Bind transports to this IP interface\n"\
-	    " --rtp-port <1-65535>              Starting port of the range used for RTP\n"\
-	    "                                                             \n";
+ 			" --rtp-port <1-65535>              Starting port of the range used for RTP\n"\
+            " --rtp-port-end <1-65535>          End of of the range range used for RTP\n"\
+            "                                                             \n";
 			return 0;
 		} else if ( (arg == "-v") || (arg == "--version") ) {
 			LOG(logINFO) <<"version: voip_patrol "<<VERSION<<std::endl;
@@ -1577,6 +1585,8 @@ int main(int argc, char **argv){
 			config.ip_cfg.bound_address = argv[++i];
 		} else if (arg == "--rtp-port") {
 			config.rtp_cfg.port = atoi(argv[++i]);
+		} else if (arg == "--rtp-port-end") {
+			config.rtp_cfg.port_range = atoi(argv[++i]);
 		} else if (arg == "--tls-privkey") {
 			config.tls_cfg.private_key = argv[++i];
 		} else if (arg == "--tls-verify-client") {
@@ -1715,9 +1725,11 @@ int main(int argc, char **argv){
 		config.total_tasks_count = 0;
 		config.process(conf_fn, log_test_fn);
 
-		LOG(logINFO) <<__FUNCTION__<<": wait complete all...";
+		LOG(logINFO) <<__FUNCTION__<<": final wait complete all...";
+
 		vector<ActionParam> params = config.action.get_params("wait");
 		config.action.set_param_by_name(&params, "complete");
+		config.action.set_param_by_name(&params, "ms", "-1");
 		config.action.do_wait(params);
 
 		LOG(logINFO) <<__FUNCTION__<<": checking alerts...";

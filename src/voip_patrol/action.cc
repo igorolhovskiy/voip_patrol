@@ -1405,12 +1405,12 @@ void Action::do_wait(const vector<ActionParam> &params) {
 		config->checking_calls.unlock();
 
 		if (tests_running == 0 && complete_all) {
-			LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] No more tests are running, exiting... " << LOG_COLOR_END;
+			LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] no more tests are running, exiting... " << LOG_COLOR_END;
 			completed = true;
 		}
 
 		if (duration_ms <= 0 && duration_ms != -1) {
-			LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] Overall duration exceeded, exiting... " << LOG_COLOR_END;
+			LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] overall duration exceeded, exiting... " << LOG_COLOR_END;
 			completed = true;
 		}
 

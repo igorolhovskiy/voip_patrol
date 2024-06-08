@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Julien Chavanton <jchavanton@gmail.com>
+ * Copyright (C) 2016-2024 Julien Chavanton <jchavanton@gmail.com>, Ihor Olkhovskyi <ihor@provoip.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -113,6 +113,7 @@ class Config {
 		turn_config_t turn_config;
 		std::vector<TestAccount *> accounts;
 		std::vector<TestCall *> calls;
+		std::vector<TestCall *> new_calls;
 		std::vector<Test *> tests;
 		std::vector<std::string> testResults;
 		ezxml_t xml_conf_head;
@@ -132,6 +133,7 @@ class Config {
 		Action action;
 		ResultFile result_file;
 		std::mutex checking_calls;
+		std::mutex new_calls_lock;
 		struct {
 			string ca_list;
 			string private_key;

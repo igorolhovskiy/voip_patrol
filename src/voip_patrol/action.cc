@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Julien Chavanton <jchavanton@gmail.com>
+ * Copyright (C) 2016-2024 Julien Chavanton <jchavanton@gmail.com>, Ihor Olkhovskyi <ihor@provoip.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -727,7 +727,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	call_state_t wait_until {INV_STATE_NULL};
 	float min_mos {0.0};
 	int max_duration {0};
-	int max_ring_duration {0};
+	int max_ring_duration {60};
 	int expected_duration {0};
 	int expected_setup_duration {0};
 	int hangup_duration {0};
@@ -764,7 +764,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 		else if (param.name.compare("force_contact") == 0) force_contact = param.s_val;
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
-		else if (param.name.compare("max_ring_duration") == 0) max_ring_duration = param.i_val;
+		else if (param.name.compare("max_ring_duration") == 0 && param.i_val != 0) max_ring_duration = param.i_val;
 		else if (param.name.compare("expected_duration") == 0) expected_duration = param.i_val;
 		else if (param.name.compare("expected_setup_duration") == 0) expected_setup_duration = param.i_val;
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
@@ -1235,6 +1235,16 @@ void Action::do_wait(const vector<ActionParam> &params) {
 	int tests_running = 0;
 	bool status_update = true;
 	while (!completed) {
+
+		// insert any incomming call received in another thread.
+		config->new_calls_lock.lock();
+		for (auto it = config->new_calls.begin(); it != config->new_calls.end(); ++it) {
+			config->calls.push_back(*it);
+			config->new_calls.erase(it);
+			break;
+		}
+		config->new_calls_lock.unlock();
+
 		for (auto & account : config->accounts) {
 			AccountInfo acc_inf = account->getInfo();
 

@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Julien Chavanton <jchavanton@gmail.com>
+ * Copyright (C) 2016-2024 Julien Chavanton <jchavanton@gmail.com>, Ihor Olkhovskyi <ihor@provoip.org>
+
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -259,8 +260,10 @@ TestCall::TestCall(TestAccount *p_acc, int call_id) : Call(*p_acc, call_id) {
 
 TestCall::~TestCall() {
 	if (test) {
-		const std::lock_guard<std::mutex> lock(test->config->checking_calls);
+		test->config->checking_calls.lock();
+		test->config->removeCall(this);
 		delete test;
+		test->config->checking_calls.unlock();
 	}
 }
 
@@ -611,7 +614,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	CallOpParam prm;
 	AccountInfo acc_inf = getInfo();
 
-	LOG(logINFO) <<__FUNCTION__<<":"<<" ["<< acc_inf.uri <<"]["<<call->getId()<<"]from["<<ci.remoteUri<<"]to["<<ci.localUri<<"]id["<<ci.callIdString<<"]";
+	LOG(logINFO) <<__FUNCTION__<<":"<<" ["<< acc_inf.uri <<"]id["<<call->getId()<<"]from["<<ci.remoteUri<<"]to["<<ci.localUri<<"]id["<<ci.callIdString<<"]";
 	if (!call->test) {
 		LOG(logINFO)<<__FUNCTION__<<" Creating new accept test";
 
@@ -666,12 +669,12 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 
 		call->test->play_dtmf = play_dtmf;
 	}
-	calls.push_back(call);
+	// calls.push_back(call);
 
-	if (call_count > 0) {
-		call_count -= 1;
-		call->test->call_count = call_count;
-	}
+	// if (call_count > 0) {
+	// 	call_count -= 1;
+	// 	call->test->call_count = call_count;
+	// }
 
 	config->calls.push_back(call);
 
@@ -680,7 +683,18 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	}
 
 	if (response_delay > 0) {
-		LOG(logINFO) << __FUNCTION__ << ": Not answering to the call due to response delay: " << response_delay;
+		LOG(logINFO) << __FUNCTION__ << ": Not answering to the call due to response delay: " << response_delay << " ms";
+
+		//CallOpParam prm_100;
+		//prm_100.statusCode = PJSIP_SC_TRYING;
+		//call->answer(prm_100);
+		calls.push_back(call);
+		if (call_count > 0) {
+			call_count -= 1;
+		}
+		config->new_calls_lock.lock();
+		config->new_calls.push_back(call);
+		config->new_calls_lock.unlock();
 
 		return;
 	}
@@ -708,6 +722,15 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		prm.reason = reason;
 	}
 	call->answer(prm);
+
+	calls.push_back(call);
+
+	if (call_count > 0) {
+		call_count -= 1;
+	}
+	config->new_calls_lock.lock();
+	config->new_calls.push_back(call);
+	config->new_calls_lock.unlock();
 }
 
 void TestAccount::onInstantMessage(OnInstantMessageParam &prm) {

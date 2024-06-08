@@ -282,6 +282,32 @@ void TestCall::onCallTsxState(OnCallTsxStateParam &prm) {
 	PJ_UNUSED_ARG(prm);
 	CallInfo ci = getInfo();
 
+	if (prm.e.type == PJSIP_EVENT_TSX_STATE && prm.e.body.tsxState.type == PJSIP_EVENT_RX_MSG) {
+		pjsip_rx_data *pjsip_rxdata = (pjsip_rx_data *) prm.e.body.tsxState.src.rdata.pjRxData;
+		if (pjsip_rxdata) {
+			if (pjsip_rxdata->msg_info.msg->type == PJSIP_RESPONSE_MSG) {
+				int msec = 0;
+				int msec_repl = pjsip_rxdata->pkt_info.timestamp.sec*1000 + pjsip_rxdata->pkt_info.timestamp.msec;
+				pj_time_val s = pjsip_rxdata->pkt_info.timestamp;
+
+				PJ_TIME_VAL_SUB(s, test->sip_latency.inviteSentTs);
+				if (ci.state == PJSIP_INV_STATE_CALLING && test->sip_latency.invite100Ms == 0) {
+					test->sip_latency.invite100Ms = s.sec*1000 + s.msec;
+				} else if (ci.state == PJSIP_INV_STATE_EARLY && test->sip_latency.invite18xMs == 0) {
+					test->sip_latency.invite18xMs = s.sec*1000 + s.msec;
+				} else if (ci.state == PJSIP_INV_STATE_CONFIRMED && test->sip_latency.invite200Ms == 0) {
+					test->sip_latency.invite200Ms = s.sec*1000 + s.msec;
+//				} else if (ci.state == PJSIP_INV_STATE_DISCONNECTED && test->sip_latency.bye200Ms == 0) {
+//					PJ_TIME_VAL_SUB(s, test->sip_latency.inviteSentTs);
+//					PJ_TIME_VAL_SUB(pjsip_rxdata->pkt_info.timestamp, s);
+//					msec = test->sip_latency.byeSentTs.sec*1000 + test->sip_latency.byeSentTs.msec;
+				}
+				LOG(logINFO) << __FUNCTION__ << " RESPONSE:" << pjsip_rxdata->msg_info.msg->line.status.code << " " << pjsip_rxdata->pkt_info.timestamp.sec << "." << pjsip_rxdata->pkt_info.timestamp.msec << " delay_ms:" << s.sec*1000 + s.msec;
+
+			}
+		}
+	}
+
 	std::string res = "call[" + std::to_string(ci.lastStatusCode) + "] reason["+ ci.lastReason +"]";
 	LOG(logINFO) <<__FUNCTION__<<": ["<<getId()<<"]["<<ci.remoteUri<<"]["<<ci.stateText<<"]id["<<ci.callIdString<<"] "<<res;
 	if (test) {
@@ -458,7 +484,6 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 		}
 	}
 
-	LOG(logDEBUG) <<__FUNCTION__;
 	CallInfo ci = getInfo();
 
 	if (disconnecting == true && ci.state != PJSIP_INV_STATE_DISCONNECTED) {
@@ -964,6 +989,12 @@ void Test::update_result() {
 						"\"local_contact\": \""+jsonLocalContact+"\", "
 						"\"remote_contact\": \""+jsonRemoteContact+"\" "
 						"}";
+
+	result_line_json += ", \"sip_latency\" : {"
+		            	"\"invite100Ms\": "+std::to_string(sip_latency.invite100Ms)+", "
+			            "\"invite18xMs\": "+std::to_string(sip_latency.invite18xMs)+", "
+			            "\"invite200Ms\": "+std::to_string(sip_latency.invite200Ms)+" "
+				    	"}";
 
 
 	if (!result_checks_json.empty())

@@ -912,9 +912,13 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 	do {
 		Test *test = new Test(config, type);
+		memset(&test->sip_latency, 0, sizeof(sipLatency));
 		test->wait_state = wait_until;
-		if (test->wait_state != INV_STATE_NULL)
+
+		if (test->wait_state != INV_STATE_NULL) {
 			test->state = VPT_RUN_WAIT;
+		}
+
 		test->expected_duration = expected_duration;
 		test->expected_setup_duration = expected_setup_duration;
 		test->label = label;
@@ -932,10 +936,13 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		test->force_contact = force_contact;
 		test->srtp = srtp;
 		std::size_t pos = caller.find("@");
+
 		if (pos!=std::string::npos) {
 			test->local_user = caller.substr(0, pos);
 		}
+
 		pos = callee.find("@");
+
 		if (pos!=std::string::npos) {
 			test->remote_user = callee.substr(0, pos);
 		}
@@ -999,6 +1006,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		}
+		pj_gettimeofday(&test->sip_latency.inviteSentTs);
 		repeat -= 1;
 	} while (repeat >= 0);
 }
@@ -1328,6 +1336,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 						     << ci.totalDuration.sec << ">=(" << test->max_ring_duration << " + " << test->response_delay << ")]";
 						CallOpParam prm(true);
 						try {
+							pj_gettimeofday(&test->sip_latency.byeSentTs);
 							call->hangup(prm);
 						} catch (pj::Error& e)  {
 							if (e.status != 171140) {
@@ -1364,6 +1373,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 							CallOpParam prm(true);
 							LOG(logINFO) << "hangup : call in PJSIP_INV_STATE_CONFIRMED" ;
 							try {
+								pj_gettimeofday(&call->test->sip_latency.byeSentTs);
 								call->hangup(prm);
 							} catch (pj::Error& e)  {
 								if (e.status != 171140) {

@@ -129,6 +129,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("re_invite_interval", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("play", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("record", false, APType::apt_string));
+	do_call_params.push_back(ActionParam("record_early", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("proxy", false, APType::apt_string));
@@ -172,6 +173,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("force_contact", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("play", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("record", false, APType::apt_string));
+	do_accept_params.push_back(ActionParam("record_early", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("code", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("call_count", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("reason", false, APType::apt_string));
@@ -529,6 +531,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	string label {};
 	string play {default_playback_file};
 	string recording {};
+	bool record_early {false};
 	string play_dtmf {};
 	string timer {};
 	string cancel_behavoir {};
@@ -558,6 +561,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("transport") == 0) transport = param.s_val;
 		else if (param.name.compare("play") == 0 && param.s_val.length() > 0) play = param.s_val;
 		else if (param.name.compare("record") == 0) recording = param.s_val;
+		else if (param.name.compare("record_early") == 0) record_early = param.b_val;
 		else if (param.name.compare("play_dtmf") == 0 && param.s_val.length() > 0) play_dtmf = param.s_val;
 		else if (param.name.compare("timer") == 0 && param.s_val.length() > 0) timer = param.s_val;
 		else if (param.name.compare("code") == 0) code = param.i_val;
@@ -685,6 +689,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->late_start = late_start;
 	acc->play = play;
 	acc->recording = recording;
+	acc->record_early = record_early;
 	acc->play_dtmf = play_dtmf;
 	acc->timer = timer;
 	acc->early_media = early_media;
@@ -735,6 +740,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	int re_invite_interval {0};
 	int repeat {0};
 	string recording {};
+	bool record_early {false};
 	bool rtp_stats {false};
 	bool late_start {false};
 	bool disable_turn {false};
@@ -748,6 +754,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("transport") == 0) transport = param.s_val;
 		else if (param.name.compare("play") == 0 && param.s_val.length() > 0) play = param.s_val;
 		else if (param.name.compare("record") == 0) recording = param.s_val;
+		else if (param.name.compare("record_early") == 0) record_early = param.b_val;
 		else if (param.name.compare("play_dtmf") == 0 && param.s_val.length() > 0) play_dtmf = param.s_val;
 		else if (param.name.compare("timer") == 0 && param.s_val.length() > 0) timer = param.s_val;
 		else if (param.name.compare("username") == 0) username = param.s_val;
@@ -792,7 +799,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 		setTurnConfigAccount(acc_cfg, config, disable_turn);
 
-		if (force_contact != ""){
+		if (force_contact != "") {
 			LOG(logINFO) << __FUNCTION__ << ":do_call:force_contact:" << force_contact << "\n";
 			acc_cfg.sipConfig.contactForced = force_contact;
 		}
@@ -933,6 +940,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		test->re_invite_interval = re_invite_interval;
 		test->re_invite_next = re_invite_interval;
 		test->recording = recording;
+		test->record_early = record_early;
 		test->rtp_stats = rtp_stats;
 		test->late_start = late_start;
 		test->force_contact = force_contact;

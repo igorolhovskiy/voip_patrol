@@ -90,12 +90,15 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 
 	if (call->recorder_id < 0) {
 		char rec_fn[1024] = "";
+
+		// Set recording filename
 		if (strcmp(recording, "auto") == 0) {
 			CallInfo ci = call->getInfo();
 			sprintf(rec_fn, "/srv/%s_%s_rec.wav", ci.callIdString.c_str(), caller_contact);
 		} else {
 			sprintf(rec_fn, "%s", recording);
 		}
+
 		call->test->record_fn = string(&rec_fn[0]);
 		const pj_str_t rec_file_name = pj_str(rec_fn);
 
@@ -108,7 +111,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 			return status;
 		}
 
-		LOG(logINFO) << __FUNCTION__ << ": [recorder] created:" << call->recorder_id << " to file :"<< rec_fn;
+		LOG(logINFO) << __FUNCTION__ << ": [recorder] created:" << call->recorder_id << " to file :" << rec_fn;
 	}
 
 	int call_conf_port = pjsua_call_get_conf_port(call_id);
@@ -126,6 +129,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 	if (status != PJ_SUCCESS) {
 		LOG(logINFO) << __FUNCTION__ << ": [error] connect status:" << status << "\n";
 	}
+
 	return status;
 }
 
@@ -359,7 +363,14 @@ void TestCall::onDtmfDigit(OnDtmfDigitParam &prm) {
 
 void TestCall::onCallMediaState(OnCallMediaStateParam &prm) {
 	CallInfo ci = getInfo();
-	LOG(logINFO) <<__FUNCTION__<<" id:"<<ci.id;
+
+	LOG(logINFO) <<__FUNCTION__<< " id:" << ci.id;
+
+	if (test && ci.state == PJSIP_INV_STATE_EARLY && test->record_early && test->recording.length() > 0) {
+		LOG(logINFO) <<__FUNCTION__<< " Start call recording in early state";
+
+		record_call(this, ci.id, test->remote_user.c_str(), test->recording.c_str());
+	}
 }
 
 void TestCall::onCallMediaUpdate(OnCallMediaStateParam &prm) {
@@ -586,7 +597,7 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 
 		stream_to_call(this, ci.id, test->remote_user.c_str());
 
-		if (test->recording.length() > 0) {
+		if (test->recording.length() > 0 && !test->record_early) {
 			record_call(this, ci.id, test->remote_user.c_str(), test->recording.c_str());
 		}
 	}
@@ -708,6 +719,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->reason = reason;
 		call->test->play = play;
 		call->test->recording = recording;
+		call->test->record_early = record_early;
 
 		LOG(logINFO) <<__FUNCTION__<<": play file:" << play;
 

@@ -238,6 +238,7 @@ class Test {
 		test_state_t state {VPT_RUN};
 		int call_id {0};
 		std::string recording {""};
+		bool record_early {false};
 		std::string record_fn;
 		std::string reference_fn;
 		std::string rtp_stats_json;
@@ -287,6 +288,7 @@ class TestAccount : public Account {
 		bool fail_on_accept {false};
 		bool disable_turn {false};
 		std::string recording {""};
+		bool record_early {false};
 		SipHeaderVector x_headers;
 		int call_count {-1};
 		int message_count {-1};

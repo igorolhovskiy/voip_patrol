@@ -1765,12 +1765,12 @@ int main(int argc, char **argv){
 		config.total_tasks_count = 0;
 		config.process(conf_fn, log_test_fn);
 
-		LOG(logINFO) <<__FUNCTION__<<": final wait complete all...";
+		// LOG(logINFO) <<__FUNCTION__<<": final wait complete all...";
 
-		vector<ActionParam> params = config.action.get_params("wait");
+		// vector<ActionParam> params = config.action.get_params("wait");
 
-		config.action.set_param_by_name(&params, "complete");
-		config.action.do_wait(params);
+		// config.action.set_param_by_name(&params, "complete");
+		// config.action.do_wait(params);
 
 		LOG(logINFO) <<__FUNCTION__<<": checking alerts...";
 

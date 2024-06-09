@@ -605,11 +605,14 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 		std::string res = " code [" + std::to_string(ci.lastStatusCode) + "] reason ["+ ci.lastReason +"] remote user [" + remote_user + "]" ;
 		test->rtp_stats_ready = true;
 		test->update_result();
+
 		LOG(logINFO) <<__FUNCTION__<<": [Call disconnected]:"<< res;
+
 		if (player_id != -1) {
 			pjsua_player_destroy(player_id);
 			player_id = -1;
 		}
+
 		if (recorder_id != -1) {
 			pjsua_recorder_destroy(recorder_id);
 			recorder_id = -1;
@@ -1750,7 +1753,9 @@ int main(int argc, char **argv){
 		scenario_status_string += "\", \"time\":\"" + current_time + "\"}}";
 
 		config.result_file.write(scenario_status_string);
+
 		LOG(logINFO) << __FUNCTION__ << scenario_status_string;
+
 		config.result_file.flush();
 
 		pjsua_set_null_snd_dev();
@@ -1763,8 +1768,8 @@ int main(int argc, char **argv){
 		LOG(logINFO) <<__FUNCTION__<<": final wait complete all...";
 
 		vector<ActionParam> params = config.action.get_params("wait");
+
 		config.action.set_param_by_name(&params, "complete");
-		config.action.set_param_by_name(&params, "ms", "-1");
 		config.action.do_wait(params);
 
 		LOG(logINFO) <<__FUNCTION__<<": checking alerts...";

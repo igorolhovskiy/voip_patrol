@@ -1349,7 +1349,7 @@ replay:
 			}
 
 			if (action_type.compare("wait") == 0) {
-1				action.do_wait(params);
+				action.do_wait(params);
 			} else if (action_type.compare("call") == 0) {
 				total_tasks_count += 1;
 				action.do_call(params, checks, x_hdrs);

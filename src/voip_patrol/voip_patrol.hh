@@ -201,13 +201,13 @@ class Test {
 		std::string end_time;
 		float min_mos{0.0};
 		float mos{0.0};
-		bool rtp_stats{false};
-		bool late_start{false};
-		std::string force_contact{""};
-		std::string reason{""};
-		int connect_duration{0};
-		int hangup_duration{0};
-		int re_invite_next{0};
+		bool rtp_stats {false};
+		bool late_start {false};
+		std::string force_contact {""};
+		std::string reason {""};
+		int connect_duration {0};
+		int hangup_duration {0};
+		int re_invite_next {0};
 		int re_invite_interval {0};
 		int setup_duration {0};
 		int expected_setup_duration {0};
@@ -239,6 +239,7 @@ class Test {
 		int call_id {0};
 		std::string recording {""};
 		bool record_early {false};
+		bool is_recording_running {false};
 		std::string record_fn;
 		std::string reference_fn;
 		std::string rtp_stats_json;

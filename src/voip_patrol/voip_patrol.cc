@@ -366,10 +366,12 @@ void TestCall::onCallMediaState(OnCallMediaStateParam &prm) {
 
 	LOG(logINFO) <<__FUNCTION__<< " id:" << ci.id;
 
-	if (test && ci.state == PJSIP_INV_STATE_EARLY && test->record_early && test->recording.length() > 0) {
+	if (test && ci.state == PJSIP_INV_STATE_EARLY && test->record_early && test->recording.length() > 0 && !test->is_recording_running) {
 		LOG(logINFO) <<__FUNCTION__<< " Start call recording in early state";
 
-		record_call(this, ci.id, test->remote_user.c_str(), test->recording.c_str());
+		if (record_call(this, ci.id, test->remote_user.c_str(), test->recording.c_str()) == PJ_SUCCESS) {
+			test->is_recording_running = true;
+		}
 	}
 }
 
@@ -597,8 +599,10 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 
 		stream_to_call(this, ci.id, test->remote_user.c_str());
 
-		if (test->recording.length() > 0 && !test->record_early) {
-			record_call(this, ci.id, test->remote_user.c_str(), test->recording.c_str());
+		if (test->recording.length() > 0 && !test->is_recording_running) {
+			if (record_call(this, ci.id, test->remote_user.c_str(), test->recording.c_str()) == PJ_SUCCESS) {
+				test->is_recording_running = true;
+			}
 		}
 	}
 	if (ci.state == PJSIP_INV_STATE_DISCONNECTED) {

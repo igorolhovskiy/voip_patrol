@@ -1241,6 +1241,7 @@ void Action::do_alert(const vector<ActionParam> &params) {
 void Action::do_wait(const vector<ActionParam> &params) {
 	int duration_ms = 0;
 	bool complete_all = false;
+
 	for (auto param : params) {
 		if (param.name.compare("ms") == 0) {
 			duration_ms = param.i_val;
@@ -1249,10 +1250,13 @@ void Action::do_wait(const vector<ActionParam> &params) {
 			complete_all = param.b_val;
 		}
 	}
+
 	LOG(logINFO) << __FUNCTION__ << " processing duration_ms:" << duration_ms << " complete all tests:" << complete_all;
+
 	bool completed = false;
 	int tests_running = 0;
 	bool status_update = true;
+
 	while (!completed) {
 
 		// insert any incomming call received in another thread.
@@ -1279,7 +1283,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 			}
 			// accept/message_count, are considered "tests_running" when maximum duration is either not specified or reached.
 			if (account->message_count > 0 && (duration_ms > 0 || duration_ms == -1)) {
-				tests_running++;
+				tests_running += 1;
 			}
 		}
 
@@ -1287,7 +1291,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 		config->checking_calls.lock();
 
 		for (auto & call : config->calls) {
-			if (call->test && call->test->state == VPT_DONE){
+			if (call->test && call->test->state == VPT_DONE) {
 				//CallInfo ci = call->getInfo();
 				//if (ci.state == PJSIP_INV_STATE_DISCONNECTED)
 				//LOG(logINFO) << "delete call test["<<call->test<<"] = " << config->removeCall(call);
@@ -1401,11 +1405,13 @@ void Action::do_wait(const vector<ActionParam> &params) {
 			}
 		}
 
-		int pos=0;
+		int pos = 0;
+
 		for (auto test : config->tests_with_rtp_stats) {
 			if (test->rtp_stats_ready) {
 				test->update_result();
-				config->tests_with_rtp_stats.erase(config->tests_with_rtp_stats.begin()+pos);
+				config->tests_with_rtp_stats.erase(config->tests_with_rtp_stats.begin() + pos);
+
 				LOG(logINFO) << __FUNCTION__ << " erase pos:" << pos;
 			} else {
 				tests_running += 1;

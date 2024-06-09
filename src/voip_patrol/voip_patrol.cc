@@ -768,7 +768,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	prm_100.statusCode = PJSIP_SC_TRYING;
 	call->answer(prm_100);
 
-	LOG(logINFO) << __FUNCTION__ << " code:" << code << " reason:" << reason;
+	LOG(logINFO) << __FUNCTION__ << " reply code:" << code << " reason:" << reason;
 
 	if (code  >= 100 && code <= 699) {
 		prm.statusCode = (pjsip_status_code) code;
@@ -1347,24 +1347,28 @@ replay:
 			for (auto &param : params) {
 				action.set_param(param, ezxml_attr(xml_action, param.name.c_str()));
 			}
-			if ( action_type.compare("wait") == 0 ) action.do_wait(params);
-			else if ( action_type.compare("call") == 0 ) {
+
+			if (action_type.compare("wait") == 0) {
+1				action.do_wait(params);
+			} else if (action_type.compare("call") == 0) {
 				total_tasks_count += 1;
 				action.do_call(params, checks, x_hdrs);
-			} else if ( action_type.compare("accept") == 0 ) {
+			} else if (action_type.compare("accept") == 0) {
 				total_tasks_count += 1;
 				action.do_accept(params, checks, x_hdrs);
-			} else if ( action_type.compare("register") == 0 ) {
+			} else if (action_type.compare("register") == 0) {
 				total_tasks_count += 1;
 				action.do_register(params, checks, x_hdrs);
-			} else if ( action_type.compare("alert") == 0 ) action.do_alert(params);
-			else if ( action_type.compare("codec") == 0 ) action.do_codec(params);
-			else if ( action_type.compare("turn") == 0 ) action.do_turn(params);
-			else if ( action_type.compare("message") == 0 ) {
+			} else if ( action_type.compare("alert") == 0) {
+				action.do_alert(params);
+			} else if (action_type.compare("codec") == 0) {
+				action.do_codec(params);
+			} else if (action_type.compare("turn") == 0) {
+				action.do_turn(params);
+			} else if (action_type.compare("message") == 0) {
 				total_tasks_count += 1;
 				action.do_message(params, checks, x_hdrs);
-			}
-			else if ( action_type.compare("accept_message") == 0 ) {
+			} else if (action_type.compare("accept_message") == 0) {
 				total_tasks_count += 1;
 				action.do_accept_message(params, checks, x_hdrs);
 			}

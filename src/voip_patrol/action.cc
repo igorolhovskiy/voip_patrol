@@ -731,6 +731,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	int expected_duration {0};
 	int expected_setup_duration {0};
 	int hangup_duration {0};
+	int early_cancel {0};
 	int re_invite_interval {0};
 	int repeat {0};
 	string recording {};
@@ -769,6 +770,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("expected_setup_duration") == 0) expected_setup_duration = param.i_val;
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
+		else if (param.name.compare("early_cancel") == 0) early_cancel = param.i_val;
 		else if (param.name.compare("repeat") == 0) repeat = param.i_val;
 	}
 
@@ -935,6 +937,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		test->late_start = late_start;
 		test->force_contact = force_contact;
 		test->srtp = srtp;
+		test->early_cancel = early_cancel;
 		std::size_t pos = caller.find("@");
 
 		if (pos!=std::string::npos) {

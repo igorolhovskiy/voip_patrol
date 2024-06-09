@@ -102,16 +102,29 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 		LOG(logINFO) <<__FUNCTION__<<": [record_call] recording to file:" << rec_fn;
 
 		status = pjsua_recorder_create(&rec_file_name, 0, NULL, -1, 0, &call->recorder_id);
+
 		if (status != PJ_SUCCESS) {
-			LOG(logINFO) <<__FUNCTION__<<": [error] record_call:" << status << "\n";
+			LOG(logINFO) << __FUNCTION__ << ": [error] record_call:" << status << "\n";
 			return status;
 		}
-		LOG(logINFO) <<__FUNCTION__<<": [recorder] created:" << call->recorder_id << " to file :"<< rec_fn;
+
+		LOG(logINFO) << __FUNCTION__ << ": [recorder] created:" << call->recorder_id << " to file :"<< rec_fn;
+	}
+
+	int call_conf_port = pjsua_call_get_conf_port(call_id);
+
+	LOG(logINFO) <<__FUNCTION__<<": [recorder] current call conf id:" << call_conf_port;
+
+	if (call_conf_port == -1) {
+		LOG(logINFO) << __FUNCTION__ << ": [error] cannot get call_conf_port for callid:" << call_id << "\n";
+
+		return PJ_FALSE;
 	}
 
 	status = pjsua_conf_connect(pjsua_call_get_conf_port(call_id), pjsua_recorder_get_conf_port(call->recorder_id));
+
 	if (status != PJ_SUCCESS) {
-		LOG(logINFO) <<__FUNCTION__<<": [error] connect status:" << status << "\n";
+		LOG(logINFO) << __FUNCTION__ << ": [error] connect status:" << status << "\n";
 	}
 	return status;
 }
@@ -295,8 +308,18 @@ void TestCall::onCallTsxState(OnCallTsxStateParam &prm) {
 					test->sip_latency.invite100Ms = s.sec*1000 + s.msec;
 				} else if (ci.state == PJSIP_INV_STATE_EARLY && test->sip_latency.invite18xMs == 0) {
 					test->sip_latency.invite18xMs = s.sec*1000 + s.msec;
+					if (test->early_cancel == 1) {
+						CallOpParam prm(true);
+						this->hangup(prm);
+						LOG(logINFO) << __FUNCTION__<< " DISCONNECTING: EARLY CANCEL RINGING:" << pjsip_rxdata->msg_info.msg->line.status.code;
+					}
 				} else if (ci.state == PJSIP_INV_STATE_CONFIRMED && test->sip_latency.invite200Ms == 0) {
 					test->sip_latency.invite200Ms = s.sec*1000 + s.msec;
+					if (test->early_cancel == 1) {
+						CallOpParam prm(true);
+						this->hangup(prm);
+						LOG(logINFO) << __FUNCTION__ << " DISCONNECTING: EARLY CANCEL CONNECTED:" << pjsip_rxdata->msg_info.msg->line.status.code;
+					}
 //				} else if (ci.state == PJSIP_INV_STATE_DISCONNECTED && test->sip_latency.bye200Ms == 0) {
 //					PJ_TIME_VAL_SUB(s, test->sip_latency.inviteSentTs);
 //					PJ_TIME_VAL_SUB(pjsip_rxdata->pkt_info.timestamp, s);

@@ -215,6 +215,7 @@ class Test {
 		int max_duration {0};
 		int ring_duration {0};
 		int response_delay {0};
+		int early_cancel {0};
 		bool early_media {false};
 		int rtp_stats_count {0};
 		int max_ring_duration {0};

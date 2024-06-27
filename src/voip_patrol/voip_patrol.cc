@@ -124,7 +124,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 		return PJ_FALSE;
 	}
 
-	status = pjsua_conf_connect(pjsua_call_get_conf_port(call_id), pjsua_recorder_get_conf_port(call->recorder_id));
+	status = pjsua_conf_connect(call_conf_port, pjsua_recorder_get_conf_port(call->recorder_id));
 
 	if (status != PJ_SUCCESS) {
 		LOG(logINFO) << __FUNCTION__ << ": [error] connect status:" << status << "\n";
@@ -481,12 +481,14 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 							"\"discard\": "+to_string(jbuf.discard)+", "
 							"\"mos_lq\": "+to_string(mos_rx)+"} "
 						"}";
-		test->rtp_stats_count++;
+
+		test->rtp_stats_count += 1;
+		test->rtp_stats_ready = true;
+
 		if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
 			LOG(logINFO) << __FUNCTION__ << "stateText: " << ci.stateText << " lastReason: " << ci.lastReason;
 			return;
 		}
-		test->rtp_stats_ready = true;
 		// Commented out as on onStreamDestroyed we're filling only RTP stats.
 		// Problem could be on 183 - 4xx sequences, where RTP stream destroyed on 183, but real result is 4xx.
 		//test->update_result();
@@ -606,7 +608,7 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 		}
 	}
 	if (ci.state == PJSIP_INV_STATE_DISCONNECTED) {
-		std::string res = " code [" + std::to_string(ci.lastStatusCode) + "] reason ["+ ci.lastReason +"] remote user [" + remote_user + "]" ;
+		std::string res = " code [" + std::to_string(ci.lastStatusCode) + "] reason ["+ ci.lastReason +"] remote user [" + remote_user + "]";
 		test->rtp_stats_ready = true;
 		test->update_result();
 
@@ -903,7 +905,7 @@ void Test::update_result() {
 		config->tests_with_rtp_stats.push_back(this);
 		return;
 	}
-	std::lock_guard<std::mutex> lock(process_result);
+	std::lock_guard<std::mutex> lock(config->process_result);
 	if (completed) {
 		LOG(logINFO) << __FUNCTION__ << "["<<this<<"]" << " already completed\n";
 		return;

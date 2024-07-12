@@ -370,7 +370,8 @@ DISCONNECTED
 | auth_username | string | authentication username on INVITE |
 | password | string | password used on INVITE |
 | realm | string | realm use for authentication on INVITE. If empty - any auth realm is allowed |
-| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
+| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, `wss` |
+| contact_uri_params | string | string, that will be added to Contact URI as params |
 | play | string | path to file to play upon answer |
 | record | string | path to file to record audio upon answer. Can be `auto`, in this case filename would be `/srv/<call_id>_<remote_contact>_rec.wav` |
 | record_early | bool | if `true` early media will be also recorded |
@@ -399,8 +400,9 @@ DISCONNECTED
 | password | string | account password |
 | account | string | if not specified username is used. Internal identifier, also used in `match_account` in `accept` action |
 | aor | string | Account Address Of Record. if not specified - `<usename@registrar>` |
+| contact_uri_params | string | string, that will be added to Contact URI as params |
 | registrar | string | SIP UAS handling registration where the messages will be sent |
-| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips` |
+| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, `wss` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add "DTLS-SRTP" support, `force` - make SRTP mandatory. Used for incoming calls to this account |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account. Used for incoming calls to this account |

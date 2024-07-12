@@ -134,6 +134,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("proxy", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
+	do_call_params.push_back(ActionParam("contact_uri_params", false, APType::apt_string));
 	// do_register
 	do_register_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("label", false, APType::apt_string));
@@ -152,6 +153,7 @@ void Action::init_actions_params() {
 	do_register_params.push_back(ActionParam("srtp", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("rewrite_contact", true, APType::apt_bool));
 	do_register_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
+	do_register_params.push_back(ActionParam("contact_uri_params", false, APType::apt_string));
 	// do_accept
 	do_accept_params.push_back(ActionParam("match_account", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("transport", false, APType::apt_string));
@@ -327,6 +329,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	string reg_id {};
 	string instance_id {};
 	string srtp {};
+	string contact_params {};
 	int expected_cause_code {200};
 	bool unregister {false};
 	bool rewrite_contact {false};
@@ -350,6 +353,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 		else if (param.name.compare("expected_cause_code") == 0) expected_cause_code = param.i_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 		else if (param.name.compare("disable_turn") == 0) disable_turn = param.b_val;
+		else if (param.name.compare("contact_uri_params") == 0 && param.s_val.length() > 0) contact_params = param.s_val;
 	}
 
 	if (username.empty() || password.empty() || registrar.empty()) {
@@ -494,7 +498,11 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	}
 	acc_cfg.sipConfig.authCreds.push_back(AuthCredInfo("digest", realm, auth_username, 0, password));
 	acc_cfg.natConfig.contactRewriteUse = rewrite_contact;
+
 	acc_cfg.sipConfig.contactUriParams = ";vp_acc=" + account_name;
+	if (!contact_params.empty()) {
+		acc_cfg.sipConfig.contactUriParams += ";" + contact_params;
+	}
 
 	// SRTP for incoming calls
 	if (srtp.find("dtls") != std::string::npos) {
@@ -555,6 +563,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	int call_count {-1};
 	int response_delay {0};
 	string reason {};
+	string contact_params {};
 
 	for (auto param : params) {
 		if (param.name.compare("match_account") == 0) account_name = param.s_val;
@@ -586,6 +595,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("cancel") == 0) cancel_behavoir = param.s_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("response_delay") == 0) response_delay = param.i_val;
+		else if (param.name.compare("contact_uri_params") == 0 && param.s_val.length() > 0) contact_params = param.s_val;
 	}
 
 	if (account_name.empty()) {
@@ -638,6 +648,10 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 				acc_cfg.callConfig.timerUse = PJSUA_SIP_TIMER_ALWAYS;
 			}
 			LOG(logINFO) << __FUNCTION__ << ":session timer["<<timer<<"]: "<< acc_cfg.callConfig.timerUse ;
+		}
+
+		if (!contact_params.empty()) {
+			acc_cfg.sipConfig.contactUriParams = ";" + contact_params;
 		}
 
 		// SRTP

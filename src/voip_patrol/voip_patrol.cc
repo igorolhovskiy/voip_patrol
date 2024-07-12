@@ -59,6 +59,26 @@ string get_call_state_from_id (int state) {
 	return "UKNOWN";
 }
 
+bool stob(std::string s) {
+    auto result = false;    // failure to assert is false
+
+    std::istringstream is(s);
+    // first try simple integer conversion
+    is >> result;
+
+    if (is.fail()) {
+        // simple integer failed; try boolean
+        is.clear();
+        is >> std::boolalpha >> result;
+    }
+
+    if (is.fail()) {
+        return false;
+    }
+
+    return result;
+}
+
 static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const char *caller_contact ) {
 	pj_status_t status = PJ_SUCCESS;
 	// Create a player if none.
@@ -970,7 +990,12 @@ void Test::update_result() {
 		LOG(logINFO) << __FUNCTION__ << " check header[" << check.hdr.hName << "] result[" << check.result << "]";
 		if (!check.result && !fail_on_accept) {
 			res = "FAIL";
-			res_text += "(Header " + check.hdr.hName + " failed)";
+			if (!check.hdr.hName.empty()) {
+				res_text += "(Header " + check.hdr.hName + " failed)";
+			}
+			if (!check.method.empty()) {
+				res_text += "(Method " + check.method + " failed)";
+			}
 		}
 
 		if (x > 0) {
@@ -1313,7 +1338,11 @@ replay:
 				if (val_inner) {
 					check.code = atoi(val_inner);
 				}
-				LOG(logINFO) <<__FUNCTION__<<" check-message: method["<<check.method<<"] regex["<< check.regex<<"]";
+				val_inner = ezxml_attr(xml_check, "fail_on_match");
+				if (val_inner) {
+					check.fail_on_match = stob(val_inner);
+				}
+				LOG(logINFO) <<__FUNCTION__<<" check-message: method["<<check.method<<"] regex["<< check.regex<<"] fail_on_match[" << check.fail_on_match << "]";
 				checks.push_back(check);
 			}
 			// <checks-header>
@@ -1336,7 +1365,11 @@ replay:
 						check.hdr.hValue = "regex/" + tmp_val;
 					}
 				}
-				LOG(logINFO) <<__FUNCTION__<< " check-header:" << check.hdr.hName << " " << check.hdr.hValue;
+				val_inner = ezxml_attr(xml_check, "fail_on_match");
+				if (val_inner) {
+					check.fail_on_match = stob(val_inner);
+				}
+				LOG(logINFO) <<__FUNCTION__<< " check-header:" << check.hdr.hName << " " << check.hdr.hValue << " fail_on_match: " << check.fail_on_match;
 				checks.push_back(check);
 			}
 			string action_type = ezxml_attr(xml_action,"type");;

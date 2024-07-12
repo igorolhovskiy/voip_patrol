@@ -86,7 +86,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 </config>
 ```
 
-### Example: accepting calls and checking for specific header with exact match or regular expression
+### Example: accepting calls and checking for specific header with exact match or regular expression and no match on other
 ```xml
 <config>
   <actions>
@@ -96,8 +96,13 @@ This version is extension of [original project](https://github.com/jchavanton/vo
             code="200" reason="OK"
     >
         <check-header name="Min-SE"/>
+        <!-- Chech that a header exists -->
         <check-header name="X-Foo" value="Bar"/>
-        <check-header name="From" regex="^.*<sip:\+1234@example\.com>"/>
+        <!-- Chech that a header exists and have a specific value -->
+        <check-header name="From" regex="^.*sip:\+1234@example\.com"/>
+        <!-- Chech that a header exists and matches a specific regex -->
+        <check-header name="To" regex="^.*sip:\+5678@example\.com" fail_on_match="true"/>
+        <!-- Chech that a header exists and NOT matches a specific regex -->
     </action>
     <action type="wait" ms="-1"/>
   </actions>
@@ -115,6 +120,23 @@ This version is extension of [original project](https://github.com/jchavanton/vo
     >
         <check-message method="INVITE" regex="m=audio(.*)RTP/AVP 0 8.*"/>
         <!-- searching for pcmu pcma in the SDP -->
+    </action>
+    <action type="wait" ms="-1"/>
+  </actions>
+</config>
+```
+
+### Example: accepting calls and searching the message with a regular expression that should not be there
+```xml
+<config>
+  <actions>
+    <action type="accept"
+            match_account="default"
+            hangup="5"
+            code="200" reason="OK"
+    >
+        <check-message method="INVITE" regex="m=audio(.*)RTP/AVP 0 8.*" fail_on_match="true"/>
+        <!-- searching for pcmu pcma in the SDP, but this is wrong here -->
     </action>
     <action type="wait" ms="-1"/>
   </actions>

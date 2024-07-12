@@ -41,6 +41,7 @@ bool check_regex(string m, string e) {
 void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& message) {
 	std::string method = pj2Str(msg->line.req.method.name);
 	LOG(logINFO) << __FUNCTION__ << ": " + method;
+
 	// action checks for headers
 	for (vector<ActionCheck> :: iterator check = checks.begin(); check != checks.end(); ++check) {
 		if (!check->regex.empty()) {
@@ -50,15 +51,24 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 			if (check_regex(message, check->regex)) {
 				check->result = true;
 			}
+			if (check->fail_on_match) {
+				check->result = not check->result;
+
+				LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
+			}
 			continue;
 		}
+
 		if (method != check->method) {
 			continue;
 		}
+
 		if (check->hdr.hName == "") {
 			continue;
 		}
+
 		LOG(logINFO) << __FUNCTION__ << " check-header:" << check->hdr.hName << " " << check->hdr.hValue;
+
 		pj_str_t header_name;
 		header_name.slen = strlen(check->hdr.hName.c_str());
 		header_name.ptr = (char*) check->hdr.hName.c_str();
@@ -70,6 +80,7 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 
 			if (check->hdr.hValue == "" || check->hdr.hValue == SHdr.hValue) {
 				LOG(logINFO) << __FUNCTION__ << " header found and value is matching:" << SHdr.hName << " " << SHdr.hValue;
+
 				check->result = true;
 			} else {
 				// Check if we have regex in pattern
@@ -78,15 +89,22 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 
 					if (check_regex(SHdr.hValue, header_value_regex)) {
 						LOG(logINFO) << __FUNCTION__ << " header found and value is matching in regex style:" << SHdr.hName << " " << SHdr.hValue << " =~ " << header_value_regex;
+
 						check->result = true;
-						continue;
 					}
+				} else {
+					LOG(logINFO) << __FUNCTION__ << " header found and value is not matching:" << SHdr.hName << " " << SHdr.hValue << " != " << check->hdr.hValue;
 				}
-				LOG(logINFO) << __FUNCTION__ << " header found and value is not matching:" << SHdr.hName << " " << SHdr.hValue << " != " << check->hdr.hValue;
 			}
 
 		} else {
 			LOG(logINFO) << __FUNCTION__ << " header not found";
+		}
+
+		if (check->fail_on_match) {
+			check->result = not check->result;
+
+			LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
 		}
 	}
 }

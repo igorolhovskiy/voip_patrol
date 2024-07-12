@@ -28,9 +28,10 @@ class ActionCheck {
 	public:
 		pj::SipHeader hdr;
 		string regex;
-		string method{"INVITE"};
-		int code{0};
-		bool result{false};
+		string method {"INVITE"};
+		int code {0};
+		bool fail_on_match {false};
+		bool result {false};
 };
 
 bool check_regex(string m, string e);

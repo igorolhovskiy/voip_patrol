@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Julien Chavanton <jchavanton@gmail.com>
+ * Copyright (C) 2016-2024 Julien Chavanton <jchavanton@gmail.com>, Ihor Olkhovskyi <ihor@provoip.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ class ActionCheck {
 		pj::SipHeader hdr;
 		string regex;
 		string method {"INVITE"};
+		string type {};
 		int code {0};
 		bool fail_on_match {false};
 		bool result {false};

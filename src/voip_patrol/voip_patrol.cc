@@ -1304,12 +1304,15 @@ replay:
 
 			SipHeaderVector x_hdrs = SipHeaderVector();
 			for (xml_xhdr = ezxml_child(xml_action, "x-header"); xml_xhdr; xml_xhdr=xml_xhdr->next) {
+
 				SipHeader sh = SipHeader();
 				sh.hName = ezxml_attr(xml_xhdr, "name");
 				sh.hValue = ezxml_attr(xml_xhdr, "value");
+
 				if (sh.hValue.compare(0, 7, "VP_ENV_") == 0){
 					if (const char* h_val = std::getenv(sh.hValue.c_str())) {
-						LOG(logINFO) <<__FUNCTION__<< ":"<<sh.hValue<<" substitution x-header:"<<sh.hName<<" "<<h_val;
+						LOG(logINFO) << __FUNCTION__ << ":" << sh.hValue << " substitution x-header:" << sh.hName << " " << h_val;
+
 						sh.hValue = h_val;
 					}
 				}
@@ -1320,6 +1323,7 @@ replay:
 			// <check-message>
 			for (xml_check = ezxml_child(xml_action, "check-message"); xml_check; xml_check=xml_check->next) {
 				ActionCheck check;
+				check.type = "message";
 				const char * val_inner = ezxml_attr(xml_check, "method");
 				if (val_inner) {
 					check.method = string(val_inner);
@@ -1342,12 +1346,14 @@ replay:
 				if (val_inner) {
 					check.fail_on_match = stob(val_inner);
 				}
-				LOG(logINFO) <<__FUNCTION__<<" check-message: method["<<check.method<<"] regex["<< check.regex<<"] fail_on_match[" << check.fail_on_match << "]";
+				LOG(logINFO) << __FUNCTION__ << " check-message: method[" << check.method << "] regex[" << check.regex<<"] fail_on_match[" << check.fail_on_match << "]";
+
 				checks.push_back(check);
 			}
 			// <checks-header>
 			for (xml_check = ezxml_child(xml_action, "check-header"); xml_check; xml_check=xml_check->next) {
 				ActionCheck check;
+				check.type = "header";
 				const char * val_inner = ezxml_attr(xml_check, "name");
 				if (!val_inner) {
 					LOG(logERROR) <<__FUNCTION__<<" missing action check header name !";
@@ -1370,6 +1376,7 @@ replay:
 					check.fail_on_match = stob(val_inner);
 				}
 				LOG(logINFO) <<__FUNCTION__<< " check-header:" << check.hdr.hName << " " << check.hdr.hValue << " fail_on_match: " << check.fail_on_match;
+
 				checks.push_back(check);
 			}
 			string action_type = ezxml_attr(xml_action,"type");;

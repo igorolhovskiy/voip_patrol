@@ -1025,7 +1025,8 @@ void Test::update_result() {
 	}
 
 
-	std::string result_line_json = "{\""+std::to_string(config->json_result_count)+ "/" + std::to_string(config->total_tasks_count) + "\": {"
+	// std::string result_line_json = "{\""+std::to_string(config->json_result_count)+ "/" + std::to_string(config->total_tasks_count) + "\": {"
+	std::string result_line_json = "{\""+std::to_string(config->json_result_count)+"\": {"
 						"\"label\": \"" + label + "\", "
 						"\"start\": \"" + start_time + "\", "
 						"\"end\": \"" + end_time + "\", "
@@ -1795,6 +1796,10 @@ int main(int argc, char **argv){
 	try {
 		// load config and execute test
 
+/*
+
+	We do not wont to print extra log string. (arsen)
+
 		get_time_string(now);
 		current_time = now;
 
@@ -1805,6 +1810,7 @@ int main(int argc, char **argv){
 		config.result_file.write(scenario_status_string);
 
 		LOG(logINFO) << __FUNCTION__ << scenario_status_string;
+*/
 
 		config.result_file.flush();
 
@@ -1892,6 +1898,9 @@ int main(int argc, char **argv){
 		LOG(logINFO) <<__FUNCTION__<<": Error Found" ;
 	}
 
+/*
+
+	We do not wont to print extra log string. (arsen)
 
 	get_time_string(now);
 	current_time = now;
@@ -1913,5 +1922,7 @@ int main(int argc, char **argv){
 	config.result_file.flush();
 
 	LOG(logINFO) <<__FUNCTION__<<": Watch completed, exiting" ;
+
+*/
 	return ret;
 }

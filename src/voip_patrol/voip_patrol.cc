@@ -987,13 +987,14 @@ void Test::update_result() {
 	int x {0};
 
 	for (auto check : checks) {
-		LOG(logINFO) << __FUNCTION__ << " check header[" << check.hdr.hName << "] result[" << check.result << "]";
+
+		LOG(logINFO) << __FUNCTION__ << " check [" << check.type << "] result[" << check.result << "]";
+
 		if (!check.result && !fail_on_accept) {
 			res = "FAIL";
 			if (!check.hdr.hName.empty()) {
 				res_text += "(Header " + check.hdr.hName + " failed)";
-			}
-			if (!check.method.empty()) {
+			} else if (!check.method.empty()) {
 				res_text += "(Method " + check.method + " failed)";
 			}
 		}

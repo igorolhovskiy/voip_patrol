@@ -28,17 +28,17 @@ bool check_regex(string m, string e) {
 	std::regex re(e);
 
 	while (std::getline(ss, line)) {
+		// Remove CRLF leftovers
 		line.pop_back();
 
-		LOG(logINFO) << __FUNCTION__ << " >>> " << line;
-
 		if (std::regex_match(line, re)) {
-			LOG(logINFO) << __FUNCTION__ << ": matching ! [" << e << "]";
+			LOG(logINFO) << __FUNCTION__ << " [" << e << "] ~= [" << line << "]";
 
 			return true;
 		}
+		LOG(logINFO) << __FUNCTION__ << " [" << e << "] != [" << line << "]";
 	}
-	LOG(logINFO) << __FUNCTION__ << ": not matching ! [" << e << "]";
+	LOG(logINFO) << __FUNCTION__ << " [" << e << "] No matches found!";
 
 	return false;
 }
@@ -47,7 +47,7 @@ bool check_regex(string m, string e) {
 void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& message) {
 	std::string method = pj2Str(msg->line.req.method.name);
 
-	LOG(logINFO) << __FUNCTION__ << ": " + method;
+	LOG(logINFO) << __FUNCTION__ << ": " << method;
 
 	for (vector<ActionCheck> :: iterator check = checks.begin(); check != checks.end(); ++check) {
 		// Message checks
@@ -58,6 +58,8 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 				}
 				if (check_regex(message, check->regex)) {
 					check->result = true;
+
+					LOG(logINFO) << __FUNCTION__ << ":  Message matched regex";
 				}
 				if (check->fail_on_match) {
 					check->result = not check->result;
@@ -75,6 +77,40 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 			}
 
 			if (check->hdr.hName == "") {
+				continue;
+			}
+
+			// Special check for RURI header. It's a first line of the message
+			if (check->hdr.hName == "RURI") {
+				std::istringstream tmp_ss(message);
+				std::string ruri;
+				std::getline(tmp_ss, ruri);
+				// Remove CRLF leftovers
+				ruri.pop_back();
+
+				if (check->hdr.hValue == ruri) {
+					check->result = true;
+
+					LOG(logINFO) << __FUNCTION__ << " Checking RURI ok: [" << ruri << "] == [" << check->hdr.hValue <<"]";
+				} else {
+					if (check->hdr.hValue.length() >= 6 && check->hdr.hValue.substr(0,6) == "regex/") {
+						std::string header_value_regex = check->hdr.hValue.substr(6);
+
+						if (check_regex(ruri, header_value_regex)) {
+							check->result = true;
+
+							LOG(logINFO) << __FUNCTION__ << " Checking RURI ok: [" << ruri << "] ~= [" << header_value_regex <<"]";
+						}
+					} else {
+						LOG(logINFO) << __FUNCTION__ << " Checking RURI failed: [" << ruri << "] != [" << check->hdr.hValue <<"]";
+					}
+				}
+
+				if (check->fail_on_match) {
+					check->result = not check->result;
+
+					LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
+				}
 				continue;
 			}
 
@@ -99,12 +135,12 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 						std::string header_value_regex = check->hdr.hValue.substr(6);
 
 						if (check_regex(SHdr.hValue, header_value_regex)) {
-							LOG(logINFO) << __FUNCTION__ << " header found and value is matching in regex style: " << SHdr.hName << " " << SHdr.hValue << " =~ " << header_value_regex;
+							LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is matching in regex style: " << SHdr.hValue << " =~ " << header_value_regex;
 
 							check->result = true;
 						}
 					} else {
-						LOG(logINFO) << __FUNCTION__ << " header found and value is not matching: " << SHdr.hName << " " << SHdr.hValue << " != " << check->hdr.hValue;
+						LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is not matching: " << SHdr.hValue << " != " << check->hdr.hValue;
 					}
 				}
 

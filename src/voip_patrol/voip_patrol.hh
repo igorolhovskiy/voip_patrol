@@ -327,4 +327,6 @@ class TestCall : public Call {
 		bool disconnecting;
 };
 
+bool stob(std::string s);
+
 #endif

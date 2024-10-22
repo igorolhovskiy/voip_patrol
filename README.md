@@ -1,6 +1,19 @@
 # VoIP Patrol
 ![GitHub Logo](VP_Logo_1200px-11th_Airborne_Division.patch_small2.jpg)
 
+## Note important:
+
+This is a fork of the [original project](https://github.com/jchavanton/voip_patrol) with some breaking changes
+* Changed format of JSON reports to support [VOTLS](https://github.com/igorolhovskiy/volts)
+* Added possibility to record calls to have the possibility to test media after
+* Reworked STUN options to support `DTLS` media more accurate
+* Extended `expected_XXX` parameters for accept/call tests
+* Reworked match mechanism on `accept` test to rely on Contact URI parameters (see `account` - `match_account` notes below)
+* Added `fail_on_accept` parameter to control calls, that should not happen
+* Code formatting :)
+
+In general, I'm trying to follow the original project features and changes, but don't expect, that your existing advanced scenarios from the original project will work with this fork, but the simple ones will work without any modifications.
+
 ## VoIP signaling and media test automaton
 Designed to automate end2end and or integration tests.
 

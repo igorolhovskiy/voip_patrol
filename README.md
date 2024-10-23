@@ -1,7 +1,7 @@
 # VoIP Patrol
 ![GitHub Logo](VP_Logo_1200px-11th_Airborne_Division.patch_small2.jpg)
 
-## Important node:
+## Important note:
 
 This is a fork of the [original project](https://github.com/jchavanton/voip_patrol) with some breaking changes
 * Changed format of JSON reports to support [VOTLS](https://github.com/igorolhovskiy/volts)

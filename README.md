@@ -455,7 +455,7 @@ DISCONNECTED
 | ---- | ---- | ----------- |
 | from | string | From header complete "\&quot;Display Name\&quot; <sip:test at 127.0.0.1>"  |
 | to_uri | string | used@host part of the URI in the To header |
-| transport | string | force a specific transport <tcp,udp,tls,sips> |
+| transport | string | force a specific transport <tcp,udp,tls> |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | username | string | authentication username, account name, From/To/Contact header user part |
 | password | string | authentication password |

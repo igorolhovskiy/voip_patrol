@@ -478,29 +478,34 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 		// Another interesting study to consider ...
 		// https://www.naun.org/main/NAUN/mcs/2002-124.pdf
 
-		if (test->rtp_stats_count > 0)
+		if (test->rtp_stats_count > 0) {
 			test->rtp_stats_json = test->rtp_stats_json + ',';
-			test->rtp_stats_json = test->rtp_stats_json + "{\"rtt\":"+to_string(rtt)+","
-						"\"remote_rtp_socket\": \""+infos.remoteRtpAddress+"\", "
-						"\"codec_name\": \""+infos.codecName+"\", "
-						"\"clock_rate\": \""+to_string(infos.codecClockRate)+"\", "
-						"\"Tx\":{"
-							"\"jitter_avg\": "+to_string(txStat.jitterUsec.mean/1000)+", "
-							"\"jitter_max\": "+to_string(txStat.jitterUsec.max/1000)+", "
-							"\"pkt\": "+to_string(txStat.pkt)+", "
-							"\"kbytes\": "+to_string(txStat.bytes/1024)+", "
-							"\"loss\": "+to_string(txStat.loss)+", "
-							"\"discard\": "+to_string(txStat.discard)+", "
-							"\"mos_lq\": "+to_string(mos_tx)+"} "
-						", \"Rx\":{"
-							"\"jitter_avg\": "+to_string(rxStat.jitterUsec.mean/1000)+", "
-							"\"jitter_max\": "+to_string(rxStat.jitterUsec.max/1000)+", "
-							"\"pkt\": "+to_string(rxStat.pkt)+", "
-							"\"kbytes\": "+to_string(rxStat.bytes/1024)+", "
-							"\"loss\": "+to_string(rxStat.loss)+", "
-							"\"discard\": "+to_string(jbuf.discard)+", "
-							"\"mos_lq\": "+to_string(mos_rx)+"} "
-						"}";
+		}
+
+		test->codec = std::string(infos.codecName);
+		std::transform(test->codec.begin(), test->codec.end(), test->codec.begin(), ::tolower);
+
+		test->rtp_stats_json = test->rtp_stats_json + "{\"rtt\":"+to_string(rtt)+","
+			"\"remote_rtp_socket\": \""+infos.remoteRtpAddress+"\", "
+			"\"codec_name\": \""+infos.codecName+"\", "
+			"\"clock_rate\": \""+to_string(infos.codecClockRate)+"\", "
+			"\"Tx\":{"
+				"\"jitter_avg\": "+to_string(txStat.jitterUsec.mean/1000)+", "
+				"\"jitter_max\": "+to_string(txStat.jitterUsec.max/1000)+", "
+				"\"pkt\": "+to_string(txStat.pkt)+", "
+				"\"kbytes\": "+to_string(txStat.bytes/1024)+", "
+				"\"loss\": "+to_string(txStat.loss)+", "
+				"\"discard\": "+to_string(txStat.discard)+", "
+				"\"mos_lq\": "+to_string(mos_tx)+"} "
+			", \"Rx\":{"
+				"\"jitter_avg\": "+to_string(rxStat.jitterUsec.mean/1000)+", "
+				"\"jitter_max\": "+to_string(rxStat.jitterUsec.max/1000)+", "
+				"\"pkt\": "+to_string(rxStat.pkt)+", "
+				"\"kbytes\": "+to_string(rxStat.bytes/1024)+", "
+				"\"loss\": "+to_string(rxStat.loss)+", "
+				"\"discard\": "+to_string(jbuf.discard)+", "
+				"\"mos_lq\": "+to_string(mos_rx)+"} "
+			"}";
 
 		test->rtp_stats_count += 1;
 		test->rtp_stats_ready = true;
@@ -726,6 +731,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->fail_on_accept = fail_on_accept;
 		call->test->expected_duration = expected_duration;
 		call->test->expected_setup_duration = expected_setup_duration;
+		call->test->expected_codec = expected_codec;
 
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
 
@@ -939,6 +945,8 @@ void Test::update_result() {
 		res_text = "Expected duration " + std::to_string(expected_duration) + " != " + std::to_string(connect_duration) + " actual duration";
 	} else if (expected_setup_duration && expected_setup_duration != setup_duration) {
 		res_text = "Expected setup duration " + std::to_string(expected_setup_duration) + " != " + std::to_string(setup_duration) + " actual setup duration";
+	} else if (expected_codec != "" && expected_codec != codec) {
+		res_text = "Expected codec " + expected_codec + " != " + codec + " actual";
 	} else if (max_duration && max_duration < connect_duration) {
 		res_text = "Max call duration " + std::to_string(max_duration) + " < " + std::to_string(connect_duration) + " actual call duration";
 	} else if (call_count > 0) {
@@ -1045,6 +1053,8 @@ void Test::update_result() {
 						"\"peer_socket\": \"" + peer_socket + "\", "
 						"\"duration\": " + std::to_string(connect_duration) + ", "
 						"\"expected_duration\": " + std::to_string(expected_duration) + ", "
+						"\"codec\": \"" + codec + "\", "
+						"\"expected_codec\": \"" + expected_codec + "\", "
 						"\"max_duration\": " + std::to_string(max_duration) + ", "
 						"\"setup_duration\": " + std::to_string(setup_duration) + ", "
 						"\"expected_setup_duration\": " + std::to_string(expected_setup_duration) + ", "
@@ -1060,11 +1070,13 @@ void Test::update_result() {
 						"\"remote_contact\": \""+jsonRemoteContact+"\" "
 						"}";
 
-	result_line_json += ", \"sip_latency\" : {"
+	if (type == "call") {
+		result_line_json += ", \"sip_latency\" : {"
 		            	"\"invite100Ms\": "+std::to_string(sip_latency.invite100Ms)+", "
 			            "\"invite18xMs\": "+std::to_string(sip_latency.invite18xMs)+", "
 			            "\"invite200Ms\": "+std::to_string(sip_latency.invite200Ms)+" "
 				    	"}";
+	}
 
 
 	if (!result_checks_json.empty())

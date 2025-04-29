@@ -208,6 +208,8 @@ class Test {
 		int re_invite_interval {0};
 		int setup_duration {0};
 		int expected_setup_duration {0};
+		std::string codec {};
+		std::string expected_codec {};
 		int expected_duration {0};
 		int max_duration {0};
 		int ring_duration {0};
@@ -275,6 +277,7 @@ class TestAccount : public Account {
 		int response_delay {0};
 		int expected_duration {0};
 		int expected_setup_duration {0};
+		std::string expected_codec {};
 		bool rtp_stats {false};
 		bool late_start {false};
 		bool unregistering {false};

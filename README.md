@@ -375,6 +375,7 @@ DISCONNECTED
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | code | int | SIP cause code to return must be > `100` and < `700` |
 | expected_cause_code | int | SIP cause to be expected from caller side as a call result. Value 487 could be combined with  `fail_on_accept` parameter |
+| expected_codec | string | expected last seen codec to be used on this call |
 | match_account | string | Account will be used to receive this call (made via `register`) falling back to match the user part of an incoming call RURI or `default` will catch all.</br>*Point, in this case account parameters specified at `register` will override account-specific parameters that defined here, for ex. `transport` or `srtp`* |
 | response_delay | int | delay before `100 - Trying` reponse is sent in seconds. Useful to test timeouts and race conditions |
 | call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |
@@ -423,6 +424,7 @@ DISCONNECTED
 | max_ring_duration | int | max ringing duration in seconds before cancel |
 | expected_duration | int | expected duration of the call in seconds. Test considered failed if actual duration is different |
 | expected_setup_duration | int | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different |
+| expected_codec | string | expected last seen codec to be used on this call |
 | hangup | int | call duration in second before hangup |
 | repeat | int | do this call multiple times |
 

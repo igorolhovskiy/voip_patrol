@@ -140,6 +140,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("max_ring_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("expected_setup_duration", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("expected_codec", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("min_mos", false, APType::apt_float));
 	do_call_params.push_back(ActionParam("rtp_stats", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("late_start", false, APType::apt_bool));
@@ -184,6 +185,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("ring_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("expected_setup_duration", false, APType::apt_integer));
+	do_accept_params.push_back(ActionParam("expected_codec", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("response_delay", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("early_media", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("wait_until", false, APType::apt_string));
@@ -230,7 +232,6 @@ void Action::init_actions_params() {
 	// do_message
 	do_message_params.push_back(ActionParam("from", true, APType::apt_string));
 	do_message_params.push_back(ActionParam("to_uri", true, APType::apt_string));
-	do_message_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_message_params.push_back(ActionParam("text", true, APType::apt_string));
 	do_message_params.push_back(ActionParam("username", true, APType::apt_string));
 	do_message_params.push_back(ActionParam("password", true, APType::apt_string));
@@ -572,6 +573,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	int hangup_duration {0};
 	int expected_duration {0};
 	int expected_setup_duration {0};
+	string expected_codec {""};
 	int re_invite_interval {0};
 	call_state_t wait_until {INV_STATE_NULL};
 	bool rtp_stats {false};
@@ -604,6 +606,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("ring_duration") == 0) ring_duration = param.i_val;
 		else if (param.name.compare("expected_duration") == 0) expected_duration = param.i_val;
 		else if (param.name.compare("expected_setup_duration") == 0) expected_setup_duration = param.i_val;
+		else if (param.name.compare("expected_codec") == 0) expected_codec = param.s_val;
 		else if (param.name.compare("early_media") == 0) early_media = param.b_val;
 		else if (param.name.compare("fail_on_accept") == 0) fail_on_accept = param.b_val;
 		else if (param.name.compare("disable_turn") == 0) disable_turn = param.b_val;
@@ -629,6 +632,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	filter_accountname(&account_name);
 
 	vp::tolower(transport);
+	std::transform(expected_codec.begin(), expected_codec.end(), expected_codec.begin(), ::tolower);
 
 	TestAccount *acc = config->findAccount(account_name);
 	if (!acc || !force_contact.empty()) {
@@ -744,6 +748,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->account_name = account_name;
 	acc->expected_duration = expected_duration;
 	acc->expected_setup_duration = expected_setup_duration;
+	acc->expected_codec = expected_codec;
 }
 
 
@@ -770,6 +775,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	int max_duration {0};
 	int max_ring_duration {60};
 	int expected_duration {0};
+	string expected_codec {""};
 	int expected_setup_duration {0};
 	int hangup_duration {0};
 	int early_cancel {0};
@@ -810,6 +816,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
 		else if (param.name.compare("max_ring_duration") == 0 && param.i_val != 0) max_ring_duration = param.i_val;
 		else if (param.name.compare("expected_duration") == 0) expected_duration = param.i_val;
+		else if (param.name.compare("expected_codec") == 0) expected_codec = param.s_val;
 		else if (param.name.compare("expected_setup_duration") == 0) expected_setup_duration = param.i_val;
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
@@ -824,6 +831,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		return;
 	}
 	vp::tolower(transport);
+	std::transform(expected_codec.begin(), expected_codec.end(), expected_codec.begin(), ::tolower);
 
 	string account_uri {caller};
 	if (transport != "udp") {
@@ -966,6 +974,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 		test->expected_duration = expected_duration;
 		test->expected_setup_duration = expected_setup_duration;
+		test->expected_codec = expected_codec;
 		test->label = label;
 		test->play = play;
 		test->play_dtmf = play_dtmf;

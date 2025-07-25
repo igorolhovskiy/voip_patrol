@@ -246,6 +246,11 @@ void Action::init_actions_params() {
 }
 
 void setTurnConfigAccount(AccountConfig &acc_cfg, Config *cfg, bool disable_turn) {
+	if (!cfg) {
+		LOG(logERROR) <<__FUNCTION__<<" Config pointer is null";
+		return;
+	}
+	
 	turn_config_t *turn_config = &cfg->turn_config;
 
 	if (!turn_config->enabled) {
@@ -269,8 +274,16 @@ void setTurnConfigAccount(AccountConfig &acc_cfg, Config *cfg, bool disable_turn
 	}
 
 	if (turn_config->stun_only) {
+		if (turn_config->server.empty()) {
+			LOG(logERROR) <<__FUNCTION__<<" STUN server string is empty";
+			return;
+		}
 
 		char* srv_name_tmp = (char*)(turn_config->server).data();
+		if (!srv_name_tmp) {
+			LOG(logERROR) <<__FUNCTION__<<" STUN server data() returned null";
+			return;
+		}
 
 		pj_str_t srv_list[] = { pj_str(srv_name_tmp) };
 		pjsua_update_stun_servers(1, srv_list, 1);

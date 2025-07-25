@@ -33,10 +33,10 @@
 using namespace pj;
 
 
-void get_time_string(char * str_now) {
+void get_time_string(char * str_now, size_t buffer_size) {
 	time_t t = time(0);
 	struct tm * now = localtime( & t );
-	sprintf(str_now,"%02d-%02d-%04d %02d:%02d:%02d", now->tm_mday, now->tm_mon+1, now->tm_year+1900, now->tm_hour, now->tm_min, now->tm_sec);
+	snprintf(str_now, buffer_size, "%02d-%02d-%04d %02d:%02d:%02d", now->tm_mday, now->tm_mon+1, now->tm_year+1900, now->tm_hour, now->tm_min, now->tm_sec);
 }
 
 call_state_t get_call_state_from_string (string state) {
@@ -84,11 +84,8 @@ static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const c
 	// Create a player if none.
 	if (call->player_id < 0) {
 		LOG(logINFO) <<__FUNCTION__<< ": [stream_to_call] streaming file: " << call->test->play;
-		char *fn = new char [call->test->play.length()+1];
-		strcpy (fn, call->test->play.c_str());
-		const pj_str_t file_name = pj_str(fn);
+		const pj_str_t file_name = {(char*)call->test->play.c_str(), (pj_ssize_t)call->test->play.size()};
 		status = pjsua_player_create(&file_name, 0, &call->player_id);
-		delete[] fn;
 		if (status != PJ_SUCCESS) {
 			LOG(logINFO) <<__FUNCTION__<<": [error] creating player: " << status;
 			return status;
@@ -114,9 +111,9 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 		// Set recording filename
 		if (strcmp(recording, "auto") == 0) {
 			CallInfo ci = call->getInfo();
-			sprintf(rec_fn, "/srv/%s_%s_rec.wav", ci.callIdString.c_str(), caller_contact);
+			snprintf(rec_fn, sizeof(rec_fn), "/srv/%s_%s_rec.wav", ci.callIdString.c_str(), caller_contact);
 		} else {
-			sprintf(rec_fn, "%s", recording);
+			snprintf(rec_fn, sizeof(rec_fn), "%s", recording);
 		}
 
 		call->test->record_fn = string(&rec_fn[0]);
@@ -297,10 +294,15 @@ TestCall::TestCall(TestAccount *p_acc, int call_id) : Call(*p_acc, call_id) {
 
 TestCall::~TestCall() {
 	if (test) {
-		test->config->checking_calls.lock();
-		test->config->removeCall(this);
-		delete test;
-		test->config->checking_calls.unlock();
+		Test* test_to_delete = nullptr;
+		{
+			test->config->checking_calls.lock();
+			test->config->removeCall(this);
+			test_to_delete = test;
+			test = nullptr;
+			test->config->checking_calls.unlock();
+		}
+		delete test_to_delete;
 	}
 }
 
@@ -868,7 +870,7 @@ void TestAccount::onInstantMessageStatus(OnInstantMessageStatusParam &prm) {
 
 Test::Test(Config *config, const string& type) : config(config), type(type) {
 	char now[20] = {'\0'};
-	get_time_string(now);
+	get_time_string(now, sizeof(now));
 	start_time = now;
 	LOG(logINFO)<<__FUNCTION__<<LOG_COLOR_INFO<<": New test created:"<<type<<LOG_COLOR_END;
 }
@@ -899,7 +901,7 @@ void jsonify(std::string *str) {
 void Test::update_result() {
 	char now[20] = {'\0'};
 	bool success = false;
-	get_time_string(now);
+	get_time_string(now, sizeof(now));
 	end_time = now;
 	state = VPT_DONE;
 	std::string res = "FAIL";
@@ -1808,7 +1810,7 @@ int main(int argc, char **argv){
 	try {
 		// load config and execute test
 
-		get_time_string(now);
+		get_time_string(now, sizeof(now));
 		current_time = now;
 
 		scenario_status_string = "{\"scenario\": {\"state\":\"start";
@@ -1906,7 +1908,7 @@ int main(int argc, char **argv){
 	}
 
 
-	get_time_string(now);
+	get_time_string(now, sizeof(now));
 	current_time = now;
 
 	scenario_status_string = "{\"scenario\": {\"state\":\"end\" ,\"result\":\"";

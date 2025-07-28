@@ -44,6 +44,76 @@ class TestCall;
 class Test;
 class Config;
 
+// RAII wrapper for PJSUA Player resources
+class PjsuaPlayer {
+private:
+	pjsua_player_id player_id_;
+	bool valid_;
+
+public:
+	PjsuaPlayer();
+	~PjsuaPlayer();
+	
+	// Create player from file
+	pj_status_t create(const pj_str_t* filename, unsigned options = 0);
+	
+	// Get player ID for PJSUA operations
+	pjsua_player_id get_id() const;
+	
+	// Check if player is valid
+	bool is_valid() const;
+	
+	// Get conference port
+	pjsua_conf_port_id get_conf_port() const;
+	
+	// Manual destroy (optional, destructor will handle it)
+	void destroy();
+	
+	// Non-copyable
+	PjsuaPlayer(const PjsuaPlayer&) = delete;
+	PjsuaPlayer& operator=(const PjsuaPlayer&) = delete;
+	
+	// Movable
+	PjsuaPlayer(PjsuaPlayer&& other) noexcept;
+	PjsuaPlayer& operator=(PjsuaPlayer&& other) noexcept;
+};
+
+// RAII wrapper for PJSUA Recorder resources  
+class PjsuaRecorder {
+private:
+	pjsua_recorder_id recorder_id_;
+	bool valid_;
+
+public:
+	PjsuaRecorder();
+	~PjsuaRecorder();
+	
+	// Create recorder to file
+	pj_status_t create(const pj_str_t* filename, unsigned enc_type = 0, 
+					   void* enc_param = NULL, pj_ssize_t max_size = -1, 
+					   unsigned options = 0);
+	
+	// Get recorder ID for PJSUA operations
+	pjsua_recorder_id get_id() const;
+	
+	// Check if recorder is valid
+	bool is_valid() const;
+	
+	// Get conference port
+	pjsua_conf_port_id get_conf_port() const;
+	
+	// Manual destroy (optional, destructor will handle it)
+	void destroy();
+	
+	// Non-copyable
+	PjsuaRecorder(const PjsuaRecorder&) = delete;
+	PjsuaRecorder& operator=(const PjsuaRecorder&) = delete;
+	
+	// Movable
+	PjsuaRecorder(PjsuaRecorder&& other) noexcept;
+	PjsuaRecorder& operator=(PjsuaRecorder&& other) noexcept;
+};
+
 typedef struct upload_data {
 	int lines_read;
 	std::vector<std::string> payload_content;
@@ -320,8 +390,11 @@ class TestCall : public Call {
 		virtual void onDtmfDigit(OnDtmfDigitParam &prm);
 		void makeCall(const string &dst_uri, const CallOpParam &prm, const string &to_uri);
 		void hangup(const CallOpParam &prm);
-		pjsua_recorder_id recorder_id{-1};
-		pjsua_player_id player_id{-1};
+		
+		// RAII-managed resources for automatic cleanup
+		PjsuaRecorder recorder;
+		PjsuaPlayer player;
+		
 		int role;
 		int rtt;
 		bool is_disconnecting(){return disconnecting;};

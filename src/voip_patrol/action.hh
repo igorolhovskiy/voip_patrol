@@ -22,6 +22,9 @@
 #include "voip_patrol.hh"
 #include "check.hh"
 #include <pjsua2.hpp>
+#include <stdexcept>
+#include <cctype>
+#include <climits>
 
 class Config;
 class ActionCheck;
@@ -42,6 +45,13 @@ struct ActionParam {
 	bool required;
 };
 
+// Safe string-to-number conversion functions with input validation
+int safe_atoi(const char* str, int default_value = 0);
+float safe_atof(const char* str, float default_value = 0.0f);
+
+// Safe string operations with bounds checking
+bool safe_string_starts_with(const std::string& str, const std::string& prefix);
+std::string sanitize_string_param(const std::string& input, size_t max_length = 512);
 
 class Action {
 	public:

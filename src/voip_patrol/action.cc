@@ -21,6 +21,8 @@
 #include "util.hh"
 #include "string.h"
 #include <pjsua2/presence.hpp>
+#include <stdexcept>
+#include <cctype>
 
 void filter_accountname(std::string *str) {
 	size_t index = 0;
@@ -36,6 +38,111 @@ void filter_accountname(std::string *str) {
 		if (index == std::string::npos) break;
 		str->replace(index, 1, "-");
 		index += 1;
+	}
+}
+
+// Safe string-to-integer conversion with input validation
+int safe_atoi(const char* str, int default_value) {
+	if (!str || *str == '\0') {
+		LOG(logERROR) << "safe_atoi: null or empty string provided, using default value: " << default_value;
+		return default_value;
+	}
+	
+	// Check if string contains only digits (and optional leading +/-)
+	const char* p = str;
+	if (*p == '+' || *p == '-') p++;
+	if (*p == '\0') {
+		LOG(logERROR) << "safe_atoi: invalid string '" << str << "', using default value: " << default_value;
+		return default_value;
+	}
+	
+	while (*p) {
+		if (!std::isdigit(*p)) {
+			LOG(logERROR) << "safe_atoi: invalid character in string '" << str << "', using default value: " << default_value;
+			return default_value;
+		}
+		p++;
+	}
+	
+	try {
+		long result = std::strtol(str, nullptr, 10);
+		if (result > INT_MAX || result < INT_MIN) {
+			LOG(logERROR) << "safe_atoi: value '" << str << "' out of int range, using default value: " << default_value;
+			return default_value;
+		}
+		return static_cast<int>(result);
+	} catch (const std::exception& e) {
+		LOG(logERROR) << "safe_atoi: conversion failed for '" << str << "', using default value: " << default_value;
+		return default_value;
+	}
+}
+
+// Safe string prefix comparison with bounds checking
+bool safe_string_starts_with(const std::string& str, const std::string& prefix) {
+	if (str.length() < prefix.length()) {
+		return false;
+	}
+	return str.substr(0, prefix.length()) == prefix;
+}
+
+// Input sanitization for string parameters - remove control characters
+std::string sanitize_string_param(const std::string& input, size_t max_length) {
+	std::string result;
+	result.reserve(std::min(input.length(), max_length));
+	
+	for (size_t i = 0; i < input.length() && result.length() < max_length; ++i) {
+		char c = input[i];
+		// Allow printable ASCII characters, space, and common extended characters
+		if ((c >= 32 && c <= 126) || c == '\t') {
+			result += c;
+		}
+		// Skip control characters and other potentially dangerous characters
+	}
+	
+	return result;
+}
+
+// Safe string-to-float conversion with input validation
+float safe_atof(const char* str, float default_value) {
+	if (!str || *str == '\0') {
+		LOG(logERROR) << "safe_atof: null or empty string provided, using default value: " << default_value;
+		return default_value;
+	}
+	
+	// Basic validation for float format
+	const char* p = str;
+	if (*p == '+' || *p == '-') p++;
+	bool has_digit = false;
+	bool has_dot = false;
+	
+	while (*p) {
+		if (std::isdigit(*p)) {
+			has_digit = true;
+		} else if (*p == '.' && !has_dot) {
+			has_dot = true;
+		} else {
+			LOG(logERROR) << "safe_atof: invalid character in string '" << str << "', using default value: " << default_value;
+			return default_value;
+		}
+		p++;
+	}
+	
+	if (!has_digit) {
+		LOG(logERROR) << "safe_atof: no digits found in string '" << str << "', using default value: " << default_value;
+		return default_value;
+	}
+	
+	try {
+		char* endptr;
+		float result = std::strtof(str, &endptr);
+		if (*endptr != '\0') {
+			LOG(logERROR) << "safe_atof: invalid characters after number in '" << str << "', using default value: " << default_value;
+			return default_value;
+		}
+		return result;
+	} catch (const std::exception& e) {
+		LOG(logERROR) << "safe_atof: conversion failed for '" << str << "', using default value: " << default_value;
+		return default_value;
 	}
 }
 
@@ -77,7 +184,8 @@ bool Action::set_param(ActionParam &param, const char *val) {
 
 	LOG(logINFO) <<__FUNCTION__<< " param name:" << param.name << " val:" << val;
 
-	if (strncmp(val,"VP_ENV_",7) == 0) {
+	// Safe string comparison with length validation
+	if (strlen(val) >= 7 && strncmp(val,"VP_ENV_",7) == 0) {
 		LOG(logINFO) << __FUNCTION__ << ": " << param.name << " " << val << " substitution override:" << get_env(val);
 
 		subst = true;
@@ -92,21 +200,22 @@ bool Action::set_param(ActionParam &param, const char *val) {
 		param.b_val = stob(tmp_val);
 	} else if (param.type == APType::apt_integer) {
 		if (subst) {
-			param.i_val = atoi(get_env(val).c_str());
+			param.i_val = safe_atoi(get_env(val).c_str());
 		} else {
-			param.i_val = atoi(val);
+			param.i_val = safe_atoi(val);
 		}
 	} else if (param.type == APType::apt_float) {
 		if (subst) {
-			param.f_val = atof(get_env(val).c_str());
+			param.f_val = safe_atof(get_env(val).c_str());
 		} else {
-			param.f_val = atof(val);
+			param.f_val = safe_atof(val);
 		}
 	} else {
+		// String parameters - apply input sanitization
 		if (subst) {
-			param.s_val = get_env(val);
+			param.s_val = sanitize_string_param(get_env(val));
 		} else {
-		    param.s_val = val;
+		    param.s_val = sanitize_string_param(std::string(val));
 		}
 	}
 	return true;
@@ -1038,7 +1147,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		LOG(logINFO) << "calling :" << callee;
 
 		if (transport == "tls") {
-			if (!to_uri.empty() && to_uri.substr(0, 3) != "sip") {
+			if (!to_uri.empty() && !safe_string_starts_with(to_uri, "sip")) {
 				to_uri = "sip:" + to_uri + ";transport=tls";
 			}
 			try {
@@ -1047,7 +1156,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		} else if (transport == "sips") {
-			if (!to_uri.empty() && to_uri.substr(0, 4) != "sips") {
+			if (!to_uri.empty() && !safe_string_starts_with(to_uri, "sips")) {
 				to_uri = "sips:" + to_uri;
 			}
 			try {
@@ -1056,7 +1165,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		} else if (transport == "tcp") {
-			if (!to_uri.empty() && to_uri.substr(0, 3) != "sip") {
+			if (!to_uri.empty() && !safe_string_starts_with(to_uri, "sip")) {
 				to_uri = "sip:" + to_uri + ";transport=tcp";
 			}
 			try {
@@ -1066,7 +1175,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			}
 		// Default UDP transport
 		} else {
-			if (!to_uri.empty() && to_uri.substr(0, 3) != "sip") {
+			if (!to_uri.empty() && !safe_string_starts_with(to_uri, "sip")) {
 				to_uri = "sip:" + to_uri;
 			}
 			try {
@@ -1319,10 +1428,10 @@ void Action::do_wait(const vector<ActionParam> &params) {
 
 		// insert any incomming call received in another thread.
 		config->new_calls_lock.lock();
-		for (auto it = config->new_calls.begin(); it != config->new_calls.end(); ++it) {
-			config->calls.push_back(*it);
+		if (!config->new_calls.empty()) {
+			auto it = config->new_calls.begin();
+			config->calls.push_back(std::move(*it));
 			config->new_calls.erase(it);
-			break;
 		}
 		config->new_calls_lock.unlock();
 
@@ -1463,17 +1572,14 @@ void Action::do_wait(const vector<ActionParam> &params) {
 			}
 		}
 
-		int pos = 0;
-
-		for (auto test : config->tests_with_rtp_stats) {
-			if (test->rtp_stats_ready) {
-				test->update_result();
-				config->tests_with_rtp_stats.erase(config->tests_with_rtp_stats.begin() + pos);
-
-				LOG(logINFO) << __FUNCTION__ << " erase pos:" << pos;
+		for (auto it = config->tests_with_rtp_stats.begin(); it != config->tests_with_rtp_stats.end();) {
+			if ((*it)->rtp_stats_ready) {
+				(*it)->update_result();
+				LOG(logINFO) << __FUNCTION__ << " erase test at position:" << std::distance(config->tests_with_rtp_stats.begin(), it);
+				it = config->tests_with_rtp_stats.erase(it);
 			} else {
 				tests_running += 1;
-				pos += 1;
+				++it;
  			}
 		}
 		// calls, can now be destroyed

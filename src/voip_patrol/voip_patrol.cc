@@ -32,11 +32,179 @@
 
 using namespace pj;
 
+// RAII wrapper implementations for PJSUA Player and Recorder resources
+
+// PjsuaPlayer implementation
+PjsuaPlayer::PjsuaPlayer() : player_id_(PJSUA_INVALID_ID), valid_(false) {}
+
+PjsuaPlayer::~PjsuaPlayer() {
+	destroy();
+}
+
+pj_status_t PjsuaPlayer::create(const pj_str_t* filename, unsigned options) {
+	if (valid_) {
+		destroy();
+	}
+	
+	pj_status_t status = pjsua_player_create(filename, options, &player_id_);
+	if (status == PJ_SUCCESS) {
+		valid_ = true;
+		LOG(logINFO) << __FUNCTION__ << ": Player created successfully, ID: " << player_id_;
+	} else {
+		LOG(logERROR) << __FUNCTION__ << ": Failed to create player, status: " << status;
+		player_id_ = PJSUA_INVALID_ID;
+		valid_ = false;
+	}
+	return status;
+}
+
+pjsua_player_id PjsuaPlayer::get_id() const {
+	return player_id_;
+}
+
+bool PjsuaPlayer::is_valid() const {
+	return valid_;
+}
+
+pjsua_conf_port_id PjsuaPlayer::get_conf_port() const {
+	if (!valid_) {
+		return PJSUA_INVALID_ID;
+	}
+	return pjsua_player_get_conf_port(player_id_);
+}
+
+void PjsuaPlayer::destroy() {
+	if (valid_ && player_id_ != PJSUA_INVALID_ID) {
+		pj_status_t status = pjsua_player_destroy(player_id_);
+		if (status != PJ_SUCCESS) {
+			LOG(logERROR) << __FUNCTION__ << ": Failed to destroy player " << player_id_ << ", status: " << status;
+		} else {
+			LOG(logINFO) << __FUNCTION__ << ": Player " << player_id_ << " destroyed successfully";
+		}
+		player_id_ = PJSUA_INVALID_ID;
+		valid_ = false;
+	}
+}
+
+PjsuaPlayer::PjsuaPlayer(PjsuaPlayer&& other) noexcept
+	: player_id_(other.player_id_), valid_(other.valid_) {
+	other.player_id_ = PJSUA_INVALID_ID;
+	other.valid_ = false;
+}
+
+PjsuaPlayer& PjsuaPlayer::operator=(PjsuaPlayer&& other) noexcept {
+	if (this != &other) {
+		destroy();
+		player_id_ = other.player_id_;
+		valid_ = other.valid_;
+		other.player_id_ = PJSUA_INVALID_ID;
+		other.valid_ = false;
+	}
+	return *this;
+}
+
+// PjsuaRecorder implementation
+PjsuaRecorder::PjsuaRecorder() : recorder_id_(PJSUA_INVALID_ID), valid_(false) {}
+
+PjsuaRecorder::~PjsuaRecorder() {
+	destroy();
+}
+
+pj_status_t PjsuaRecorder::create(const pj_str_t* filename, unsigned enc_type, 
+								  void* enc_param, pj_ssize_t max_size, 
+								  unsigned options) {
+	if (valid_) {
+		destroy();
+	}
+	
+	pj_status_t status = pjsua_recorder_create(filename, enc_type, enc_param, 
+											   max_size, options, &recorder_id_);
+	if (status == PJ_SUCCESS) {
+		valid_ = true;
+		LOG(logINFO) << __FUNCTION__ << ": Recorder created successfully, ID: " << recorder_id_;
+	} else {
+		LOG(logERROR) << __FUNCTION__ << ": Failed to create recorder, status: " << status;
+		recorder_id_ = PJSUA_INVALID_ID;
+		valid_ = false;
+	}
+	return status;
+}
+
+pjsua_recorder_id PjsuaRecorder::get_id() const {
+	return recorder_id_;
+}
+
+bool PjsuaRecorder::is_valid() const {
+	return valid_;
+}
+
+pjsua_conf_port_id PjsuaRecorder::get_conf_port() const {
+	if (!valid_) {
+		return PJSUA_INVALID_ID;
+	}
+	return pjsua_recorder_get_conf_port(recorder_id_);
+}
+
+void PjsuaRecorder::destroy() {
+	if (valid_ && recorder_id_ != PJSUA_INVALID_ID) {
+		pj_status_t status = pjsua_recorder_destroy(recorder_id_);
+		if (status != PJ_SUCCESS) {
+			LOG(logERROR) << __FUNCTION__ << ": Failed to destroy recorder " << recorder_id_ << ", status: " << status;
+		} else {
+			LOG(logINFO) << __FUNCTION__ << ": Recorder " << recorder_id_ << " destroyed successfully";
+		}
+		recorder_id_ = PJSUA_INVALID_ID;
+		valid_ = false;
+	}
+}
+
+PjsuaRecorder::PjsuaRecorder(PjsuaRecorder&& other) noexcept
+	: recorder_id_(other.recorder_id_), valid_(other.valid_) {
+	other.recorder_id_ = PJSUA_INVALID_ID;
+	other.valid_ = false;
+}
+
+PjsuaRecorder& PjsuaRecorder::operator=(PjsuaRecorder&& other) noexcept {
+	if (this != &other) {
+		destroy();
+		recorder_id_ = other.recorder_id_;
+		valid_ = other.valid_;
+		other.recorder_id_ = PJSUA_INVALID_ID;
+		other.valid_ = false;
+	}
+	return *this;
+}
+
 
 void get_time_string(char * str_now, size_t buffer_size) {
 	time_t t = time(0);
 	struct tm * now = localtime( & t );
 	snprintf(str_now, buffer_size, "%02d-%02d-%04d %02d:%02d:%02d", now->tm_mday, now->tm_mon+1, now->tm_year+1900, now->tm_hour, now->tm_min, now->tm_sec);
+}
+
+// Validate and calculate proper RTP port range
+// Test cases to validate:
+// - validate_and_get_port_range(4000, 0, "test") should return 14000
+// - validate_and_get_port_range(4000, 3000, "test") should return 14000 (and log warning)
+// - validate_and_get_port_range(4000, 8000, "test") should return 8000
+// - validate_and_get_port_range(4000, 60000, "test") should return 60000 (and log warning)
+int validate_and_get_port_range(int start_port, int specified_range, const std::string& context = "") {
+	if (specified_range == 0 || specified_range < start_port) {
+		// Use default range when specified_range is invalid or unset
+		if (specified_range != 0 && specified_range < start_port && !context.empty()) {
+			LOG(logWARNING) << context << " invalid port_range " << specified_range 
+							<< " (less than start port " << start_port << "), using default range";
+		}
+		return start_port + 10000;
+	} else {
+		// Use specified range when valid
+		int range_size = specified_range - start_port;
+		if (range_size > 50000 && !context.empty()) {
+			LOG(logWARNING) << context << " very large port range: " << range_size 
+							<< " ports (" << start_port << "-" << specified_range << ")";
+		}
+		return specified_range;
+	}
 }
 
 call_state_t get_call_state_from_string (string state) {
@@ -82,18 +250,18 @@ bool stob(std::string s) {
 static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const char *caller_contact ) {
 	pj_status_t status = PJ_SUCCESS;
 	// Create a player if none.
-	if (call->player_id < 0) {
+	if (!call->player.is_valid()) {
 		LOG(logINFO) <<__FUNCTION__<< ": [stream_to_call] streaming file: " << call->test->play;
 		const pj_str_t file_name = {(char*)call->test->play.c_str(), (pj_ssize_t)call->test->play.size()};
-		status = pjsua_player_create(&file_name, 0, &call->player_id);
+		status = call->player.create(&file_name, 0);
 		if (status != PJ_SUCCESS) {
 			LOG(logINFO) <<__FUNCTION__<<": [error] creating player: " << status;
 			return status;
 		}
 	}
-	LOG(logINFO) <<__FUNCTION__<< ": connecting player_id[" << call->player_id << "]";
+	LOG(logINFO) <<__FUNCTION__<< ": connecting player_id[" << call->player.get_id() << "]";
 
-	status = pjsua_conf_connect(pjsua_player_get_conf_port(call->player_id), pjsua_call_get_conf_port(call_id));
+	status = pjsua_conf_connect(call->player.get_conf_port(), pjsua_call_get_conf_port(call_id));
 	if (status != PJ_SUCCESS) {
 		LOG(logINFO) <<__FUNCTION__<<": [error] connecting player: " << status;
 	}
@@ -105,7 +273,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 	// Create a recorder if none.
 	LOG(logINFO) <<__FUNCTION__<<": [record_call] starting recording call:" << call_id;
 
-	if (call->recorder_id < 0) {
+	if (!call->recorder.is_valid()) {
 		char rec_fn[1024] = "";
 
 		// Set recording filename
@@ -121,14 +289,14 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 
 		LOG(logINFO) <<__FUNCTION__<<": [record_call] recording to file:" << rec_fn;
 
-		status = pjsua_recorder_create(&rec_file_name, 0, NULL, -1, 0, &call->recorder_id);
+		status = call->recorder.create(&rec_file_name, 0, NULL, -1, 0);
 
 		if (status != PJ_SUCCESS) {
 			LOG(logINFO) << __FUNCTION__ << ": [error] record_call:" << status << "\n";
 			return status;
 		}
 
-		LOG(logINFO) << __FUNCTION__ << ": [recorder] created:" << call->recorder_id << " to file :" << rec_fn;
+		LOG(logINFO) << __FUNCTION__ << ": [recorder] created:" << call->recorder.get_id() << " to file :" << rec_fn;
 	}
 
 	int call_conf_port = pjsua_call_get_conf_port(call_id);
@@ -141,7 +309,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 		return PJ_FALSE;
 	}
 
-	status = pjsua_conf_connect(call_conf_port, pjsua_recorder_get_conf_port(call->recorder_id));
+	status = pjsua_conf_connect(call_conf_port, call->recorder.get_conf_port());
 
 	if (status != PJ_SUCCESS) {
 		LOG(logINFO) << __FUNCTION__ << ": [error] connect status:" << status << "\n";
@@ -286,8 +454,7 @@ void TestCall::makeCall(const string &dst_uri, const CallOpParam &prm, const str
 TestCall::TestCall(TestAccount *p_acc, int call_id) : Call(*p_acc, call_id) {
 	test = NULL;
 	acc = p_acc;
-	recorder_id = -1;
-	player_id = -1;
+	// recorder and player are automatically initialized by their constructors
 	role = -1; // Caller 0 | callee 1
 	disconnecting = false;
 }
@@ -641,15 +808,8 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 
 		LOG(logINFO) <<__FUNCTION__<<": [Call disconnected]:"<< res;
 
-		if (player_id != -1) {
-			pjsua_player_destroy(player_id);
-			player_id = -1;
-		}
-
-		if (recorder_id != -1) {
-			pjsua_recorder_destroy(recorder_id);
-			recorder_id = -1;
-		}
+		// RAII wrappers will automatically clean up player and recorder resources
+		// in their destructors when the TestCall object is destroyed
 	}
 }
 
@@ -1241,10 +1401,10 @@ TestAccount* Config::createAccount(AccountConfig acc_cfg) {
 	account->config = this;
 	acc_cfg.mediaConfig.transportConfig.port = rtp_cfg.port;
 
-	if (rtp_cfg.port_range == 0 || rtp_cfg.port_range < rtp_cfg.port) {
-		acc_cfg.mediaConfig.transportConfig.portRange = rtp_cfg.port + 10000;
-		acc_cfg.mediaConfig.transportConfig.portRange = rtp_cfg.port_range;
-	}
+	// Validate and set RTP port range using centralized validation function
+	acc_cfg.mediaConfig.transportConfig.portRange = validate_and_get_port_range(
+		rtp_cfg.port, rtp_cfg.port_range, __FUNCTION__
+	);
 
 	LOG(logINFO) << __FUNCTION__ << " rtp port range: " << rtp_cfg.port << "-" << acc_cfg.mediaConfig.transportConfig.portRange;
 
@@ -1355,7 +1515,7 @@ replay:
 				}
 				val_inner = ezxml_attr(xml_check, "code");
 				if (val_inner) {
-					check.code = atoi(val_inner);
+					check.code = safe_atoi(val_inner);
 				}
 				val_inner = ezxml_attr(xml_check, "fail_on_match");
 				if (val_inner) {
@@ -1658,7 +1818,7 @@ int main(int argc, char **argv){
 			}
 		} else if ( (arg == "-t") || (arg == "--timer_ms") ) {
 			if (i + 1 < argc) {
-				timer_ms = atoi(argv[++i]);
+				timer_ms = safe_atoi(argv[++i]);
 			}
 		} else if ( (arg == "--graceful-shutdown") ) {
 			config.graceful_shutdown = true;
@@ -1670,11 +1830,11 @@ int main(int argc, char **argv){
 			config.rewrite_ack_transport = true;
 		} else if ( (arg == "--log-level-file") ) {
 			if (i + 1 < argc) {
-				log_level_file = atoi(argv[++i]);
+				log_level_file = safe_atoi(argv[++i]);
 			}
 		} else if ( (arg == "--log-level-console") ) {
 			if (i + 1 < argc) {
-				log_level_console = atoi(argv[++i]);
+				log_level_console = safe_atoi(argv[++i]);
 			}
 		} else if ( (arg == "-l") || (arg == "--log")) {
 			if (i + 1 < argc) {
@@ -1687,9 +1847,9 @@ int main(int argc, char **argv){
 		} else if (arg == "--bound-addr") {
 			config.ip_cfg.bound_address = argv[++i];
 		} else if (arg == "--rtp-port") {
-			config.rtp_cfg.port = atoi(argv[++i]);
+			config.rtp_cfg.port = safe_atoi(argv[++i]);
 		} else if (arg == "--rtp-port-end") {
-			config.rtp_cfg.port_range = atoi(argv[++i]);
+			config.rtp_cfg.port_range = safe_atoi(argv[++i]);
 		} else if (arg == "--tls-privkey") {
 			config.tls_cfg.private_key = argv[++i];
 		} else if (arg == "--tls-verify-client") {
@@ -1702,7 +1862,7 @@ int main(int argc, char **argv){
 			config.tls_cfg.certificate = argv[++i];
 		} else if ( (arg == "-p") || (arg == "--port")) {
 			if (i + 1 < argc) {
-				port = atoi(argv[++i]);
+				port = safe_atoi(argv[++i]);
 			}
 		} else if ( (arg == "-o") || (arg == "--output")) {
 			if (i + 1 < argc) {

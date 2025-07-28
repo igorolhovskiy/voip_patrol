@@ -13,6 +13,9 @@
 #define PJSUA_MAX_CALLS     512
 #define PJSUA_MAX_PLAYERS   512
 
+// Fix limits.h warning by telling PJSIP that limits.h is available
+#define PJ_HAS_LIMITS_H 1
+
 // SRTP
 #define PJMEDIA_SRTP_HAS_DTLS           1
 // Make send of "100 - Trying" explicit

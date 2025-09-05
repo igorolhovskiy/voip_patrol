@@ -39,6 +39,22 @@
 
 using namespace pj;
 
+struct DurationRange {
+	int min_val {0};
+	int max_val {0};
+	bool is_range {false};
+
+	DurationRange();
+	DurationRange(int single_val);
+	DurationRange(int min_v, int max_v);
+
+	bool isInRange(int value) const;
+	int getSingleValue() const;
+};
+
+DurationRange parseDurationRange(const std::string& str);
+bool validateDuration(const DurationRange& expected, int actual, std::string& error_msg, const std::string& param_name);
+
 class TestAccount;
 class TestCall;
 class Test;
@@ -53,26 +69,26 @@ private:
 public:
 	PjsuaPlayer();
 	~PjsuaPlayer();
-	
+
 	// Create player from file
 	pj_status_t create(const pj_str_t* filename, unsigned options = 0);
-	
+
 	// Get player ID for PJSUA operations
 	pjsua_player_id get_id() const;
-	
+
 	// Check if player is valid
 	bool is_valid() const;
-	
+
 	// Get conference port
 	pjsua_conf_port_id get_conf_port() const;
-	
+
 	// Manual destroy (optional, destructor will handle it)
 	void destroy();
-	
+
 	// Non-copyable
 	PjsuaPlayer(const PjsuaPlayer&) = delete;
 	PjsuaPlayer& operator=(const PjsuaPlayer&) = delete;
-	
+
 	// Movable
 	PjsuaPlayer(PjsuaPlayer&& other) noexcept;
 	PjsuaPlayer& operator=(PjsuaPlayer&& other) noexcept;
@@ -87,28 +103,28 @@ private:
 public:
 	PjsuaRecorder();
 	~PjsuaRecorder();
-	
+
 	// Create recorder to file
 	pj_status_t create(const pj_str_t* filename, unsigned enc_type = 0, 
 					   void* enc_param = NULL, pj_ssize_t max_size = -1, 
 					   unsigned options = 0);
-	
+
 	// Get recorder ID for PJSUA operations
 	pjsua_recorder_id get_id() const;
-	
+
 	// Check if recorder is valid
 	bool is_valid() const;
-	
+
 	// Get conference port
 	pjsua_conf_port_id get_conf_port() const;
-	
+
 	// Manual destroy (optional, destructor will handle it)
 	void destroy();
-	
+
 	// Non-copyable
 	PjsuaRecorder(const PjsuaRecorder&) = delete;
 	PjsuaRecorder& operator=(const PjsuaRecorder&) = delete;
-	
+
 	// Movable
 	PjsuaRecorder(PjsuaRecorder&& other) noexcept;
 	PjsuaRecorder& operator=(PjsuaRecorder&& other) noexcept;
@@ -278,9 +294,11 @@ class Test {
 		int re_invite_interval {0};
 		int setup_duration {0};
 		int expected_setup_duration {0};
+		DurationRange expected_setup_duration_range;
 		std::string codec {};
 		std::string expected_codec {};
 		int expected_duration {0};
+		DurationRange expected_duration_range;
 		int max_duration {0};
 		int ring_duration {0};
 		int response_delay {0};
@@ -346,7 +364,9 @@ class TestAccount : public Account {
 		int ring_duration {0};
 		int response_delay {0};
 		int expected_duration {0};
+		DurationRange expected_duration_range;
 		int expected_setup_duration {0};
+		DurationRange expected_setup_duration_range;
 		std::string expected_codec {};
 		bool rtp_stats {false};
 		bool late_start {false};

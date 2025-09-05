@@ -47,7 +47,7 @@ int safe_atoi(const char* str, int default_value) {
 		LOG(logERROR) << "safe_atoi: null or empty string provided, using default value: " << default_value;
 		return default_value;
 	}
-	
+
 	// Check if string contains only digits (and optional leading +/-)
 	const char* p = str;
 	if (*p == '+' || *p == '-') p++;
@@ -55,7 +55,7 @@ int safe_atoi(const char* str, int default_value) {
 		LOG(logERROR) << "safe_atoi: invalid string '" << str << "', using default value: " << default_value;
 		return default_value;
 	}
-	
+
 	while (*p) {
 		if (!std::isdigit(*p)) {
 			LOG(logERROR) << "safe_atoi: invalid character in string '" << str << "', using default value: " << default_value;
@@ -63,7 +63,7 @@ int safe_atoi(const char* str, int default_value) {
 		}
 		p++;
 	}
-	
+
 	try {
 		long result = std::strtol(str, nullptr, 10);
 		if (result > INT_MAX || result < INT_MIN) {
@@ -89,7 +89,7 @@ bool safe_string_starts_with(const std::string& str, const std::string& prefix) 
 std::string sanitize_string_param(const std::string& input, size_t max_length) {
 	std::string result;
 	result.reserve(std::min(input.length(), max_length));
-	
+
 	for (size_t i = 0; i < input.length() && result.length() < max_length; ++i) {
 		char c = input[i];
 		// Allow printable ASCII characters, space, and common extended characters
@@ -98,7 +98,7 @@ std::string sanitize_string_param(const std::string& input, size_t max_length) {
 		}
 		// Skip control characters and other potentially dangerous characters
 	}
-	
+
 	return result;
 }
 
@@ -114,7 +114,7 @@ float safe_atof(const char* str, float default_value) {
 	if (*p == '+' || *p == '-') p++;
 	bool has_digit = false;
 	bool has_dot = false;
-	
+
 	while (*p) {
 		if (std::isdigit(*p)) {
 			has_digit = true;
@@ -126,12 +126,12 @@ float safe_atof(const char* str, float default_value) {
 		}
 		p++;
 	}
-	
+
 	if (!has_digit) {
 		LOG(logERROR) << "safe_atof: no digits found in string '" << str << "', using default value: " << default_value;
 		return default_value;
 	}
-	
+
 	try {
 		char* endptr;
 		float result = std::strtof(str, &endptr);
@@ -248,7 +248,9 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("repeat", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("max_ring_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("expected_setup_duration", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("expected_setup_duration", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("expected_codec", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("min_mos", false, APType::apt_float));
 	do_call_params.push_back(ActionParam("rtp_stats", false, APType::apt_bool));
@@ -293,7 +295,9 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("max_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("ring_duration", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
+	do_accept_params.push_back(ActionParam("expected_duration", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("expected_setup_duration", false, APType::apt_integer));
+	do_accept_params.push_back(ActionParam("expected_setup_duration", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("expected_codec", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("response_delay", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("early_media", false, APType::apt_bool));
@@ -359,7 +363,7 @@ void setTurnConfigAccount(AccountConfig &acc_cfg, Config *cfg, bool disable_turn
 		LOG(logERROR) <<__FUNCTION__<<" Config pointer is null";
 		return;
 	}
-	
+
 	turn_config_t *turn_config = &cfg->turn_config;
 
 	if (!turn_config->enabled) {
@@ -695,6 +699,8 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	int hangup_duration {0};
 	int expected_duration {0};
 	int expected_setup_duration {0};
+	DurationRange expected_duration_range;
+	DurationRange expected_setup_duration_range;
 	string expected_codec {""};
 	int re_invite_interval {0};
 	call_state_t wait_until {INV_STATE_NULL};
@@ -726,8 +732,24 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("label") == 0 && param.s_val.length() > 0) label = param.s_val;
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
 		else if (param.name.compare("ring_duration") == 0) ring_duration = param.i_val;
-		else if (param.name.compare("expected_duration") == 0) expected_duration = param.i_val;
-		else if (param.name.compare("expected_setup_duration") == 0) expected_setup_duration = param.i_val;
+		else if (param.name.compare("expected_duration") == 0) {
+			if (param.type == APType::apt_integer) {
+				expected_duration = param.i_val;
+				expected_duration_range = DurationRange(param.i_val);
+			} else if (param.type == APType::apt_string && param.s_val.length() > 0) {
+				expected_duration_range = parseDurationRange(param.s_val);
+				expected_duration = expected_duration_range.getSingleValue();
+			}
+		}
+		else if (param.name.compare("expected_setup_duration") == 0) {
+			if (param.type == APType::apt_integer) {
+				expected_setup_duration = param.i_val;
+				expected_setup_duration_range = DurationRange(param.i_val);
+			} else if (param.type == APType::apt_string && param.s_val.length() > 0) {
+				expected_setup_duration_range = parseDurationRange(param.s_val);
+				expected_setup_duration = expected_setup_duration_range.getSingleValue();
+			}
+		}
 		else if (param.name.compare("expected_codec") == 0) expected_codec = param.s_val;
 		else if (param.name.compare("early_media") == 0) early_media = param.b_val;
 		else if (param.name.compare("fail_on_accept") == 0) fail_on_accept = param.b_val;
@@ -869,7 +891,9 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->disable_turn = disable_turn;
 	acc->account_name = account_name;
 	acc->expected_duration = expected_duration;
+	acc->expected_duration_range = expected_duration_range;
 	acc->expected_setup_duration = expected_setup_duration;
+	acc->expected_setup_duration_range = expected_setup_duration_range;
 	acc->expected_codec = expected_codec;
 }
 
@@ -899,6 +923,8 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	int expected_duration {0};
 	string expected_codec {""};
 	int expected_setup_duration {0};
+	DurationRange expected_duration_range;
+	DurationRange expected_setup_duration_range;
 	int hangup_duration {0};
 	int early_cancel {0};
 	int re_invite_interval {0};
@@ -937,9 +963,25 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("force_contact") == 0) force_contact = param.s_val;
 		else if (param.name.compare("max_duration") == 0) max_duration = param.i_val;
 		else if (param.name.compare("max_ring_duration") == 0 && param.i_val != 0) max_ring_duration = param.i_val;
-		else if (param.name.compare("expected_duration") == 0) expected_duration = param.i_val;
+		else if (param.name.compare("expected_duration") == 0) {
+			if (param.type == APType::apt_integer) {
+				expected_duration = param.i_val;
+				expected_duration_range = DurationRange(param.i_val);
+			} else if (param.type == APType::apt_string && param.s_val.length() > 0) {
+				expected_duration_range = parseDurationRange(param.s_val);
+				expected_duration = expected_duration_range.getSingleValue();
+			}
+		}
 		else if (param.name.compare("expected_codec") == 0) expected_codec = param.s_val;
-		else if (param.name.compare("expected_setup_duration") == 0) expected_setup_duration = param.i_val;
+		else if (param.name.compare("expected_setup_duration") == 0) {
+			if (param.type == APType::apt_integer) {
+				expected_setup_duration = param.i_val;
+				expected_setup_duration_range = DurationRange(param.i_val);
+			} else if (param.type == APType::apt_string && param.s_val.length() > 0) {
+				expected_setup_duration_range = parseDurationRange(param.s_val);
+				expected_setup_duration = expected_setup_duration_range.getSingleValue();
+			}
+		}
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("early_cancel") == 0) early_cancel = param.i_val;
@@ -1095,7 +1137,9 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		}
 
 		test->expected_duration = expected_duration;
+		test->expected_duration_range = expected_duration_range;
 		test->expected_setup_duration = expected_setup_duration;
+		test->expected_setup_duration_range = expected_setup_duration_range;
 		test->expected_codec = expected_codec;
 		test->label = label;
 		test->play = play;

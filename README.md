@@ -369,8 +369,8 @@ DISCONNECTED
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | ring_duration | int | ringing duration in seconds |
-| expected_duration | int | expected duration of the call in seconds. Test considered failed if actual duration is different |
-| expected_setup_duration | int | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different |
+| expected_duration | int/range | expected duration of the call in seconds. Test considered failed if actual duration is different or not within `min-max` range |
+| expected_setup_duration | int/range | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | early_media | bool | if `true` 183 with SDP and early media is used |
 | timer | string | control SIP session timers, possible values are : inactive, optional, required or always |
 | code | int | SIP cause code to return must be > `100` and < `700` |
@@ -422,8 +422,8 @@ DISCONNECTED
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account |
 | force_contact | string | local contact header will be overwritten by the given string |
 | max_ring_duration | int | max ringing duration in seconds before cancel |
-| expected_duration | int | expected duration of the call in seconds. Test considered failed if actual duration is different |
-| expected_setup_duration | int | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different |
+| expected_duration | int/range | expected duration of the call in seconds. Test considered failed if actual duration is different or not within `min-max` range |
+| expected_setup_duration | int/range | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | expected_codec | string | expected last seen codec to be used on this call |
 | hangup | int | call duration in second before hangup |
 | repeat | int | do this call multiple times |

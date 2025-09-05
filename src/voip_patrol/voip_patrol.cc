@@ -32,6 +32,67 @@
 
 using namespace pj;
 
+// DurationRange implementations
+DurationRange::DurationRange() {}
+
+DurationRange::DurationRange(int single_val) : min_val(single_val), max_val(single_val), is_range(false) {}
+
+DurationRange::DurationRange(int min_v, int max_v) : min_val(min_v), max_val(max_v), is_range(true) {}
+
+bool DurationRange::isInRange(int value) const {
+	if (!is_range && min_val == 0) return true;
+	return value >= min_val && value <= max_val;
+}
+
+int DurationRange::getSingleValue() const {
+	return is_range ? 0 : min_val;
+}
+
+DurationRange parseDurationRange(const std::string& str) {
+	if (str.empty()) {
+		return DurationRange();
+	}
+
+	size_t dash_pos = str.find('-');
+	if (dash_pos != std::string::npos && dash_pos > 0 && dash_pos < str.length() - 1) {
+		try {
+			int min_val = std::stoi(str.substr(0, dash_pos));
+			int max_val = std::stoi(str.substr(dash_pos + 1));
+			if (min_val <= max_val) {
+				return DurationRange(min_val, max_val);
+			}
+		} catch (const std::exception&) {
+			// Fall through to single value parsing
+		}
+	}
+
+	try {
+		int single_val = std::stoi(str);
+		return DurationRange(single_val);
+	} catch (const std::exception&) {
+		return DurationRange();
+	}
+}
+
+bool validateDuration(const DurationRange& expected, int actual, std::string& error_msg, const std::string& param_name) {
+	if (!expected.is_range && expected.min_val == 0) {
+		return true;
+	}
+
+	if (!expected.isInRange(actual)) {
+		if (expected.is_range) {
+			error_msg = "Expected " + param_name + " " + std::to_string(expected.min_val) +
+			           "-" + std::to_string(expected.max_val) + " != " + std::to_string(actual) +
+			           " actual " + param_name.substr(9);
+		} else {
+			error_msg = "Expected " + param_name.substr(9) + " " + std::to_string(expected.min_val) +
+			           " != " + std::to_string(actual) + " actual " + param_name.substr(9);
+		}
+		return false;
+	}
+	return true;
+}
+
 // RAII wrapper implementations for PJSUA Player and Recorder resources
 
 // PjsuaPlayer implementation
@@ -45,7 +106,7 @@ pj_status_t PjsuaPlayer::create(const pj_str_t* filename, unsigned options) {
 	if (valid_) {
 		destroy();
 	}
-	
+
 	pj_status_t status = pjsua_player_create(filename, options, &player_id_);
 	if (status == PJ_SUCCESS) {
 		valid_ = true;
@@ -116,7 +177,7 @@ pj_status_t PjsuaRecorder::create(const pj_str_t* filename, unsigned enc_type,
 	if (valid_) {
 		destroy();
 	}
-	
+
 	pj_status_t status = pjsua_recorder_create(filename, enc_type, enc_param, 
 											   max_size, options, &recorder_id_);
 	if (status == PJ_SUCCESS) {
@@ -892,7 +953,9 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->cancel_behavoir = cancel_behavoir;
 		call->test->fail_on_accept = fail_on_accept;
 		call->test->expected_duration = expected_duration;
+		call->test->expected_duration_range = expected_duration_range;
 		call->test->expected_setup_duration = expected_setup_duration;
+		call->test->expected_setup_duration_range = expected_setup_duration_range;
 		call->test->expected_codec = expected_codec;
 
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
@@ -1105,8 +1168,12 @@ void Test::update_result() {
 		res_text = "This call should not happen";
 	} else if (expected_duration && expected_duration != connect_duration) {
 		res_text = "Expected duration " + std::to_string(expected_duration) + " != " + std::to_string(connect_duration) + " actual duration";
+	} else if (!validateDuration(expected_duration_range, connect_duration, res_text, "expected_duration")) {
+		// res_text is set by validateDuration
 	} else if (expected_setup_duration && expected_setup_duration != setup_duration) {
 		res_text = "Expected setup duration " + std::to_string(expected_setup_duration) + " != " + std::to_string(setup_duration) + " actual setup duration";
+	} else if (!validateDuration(expected_setup_duration_range, setup_duration, res_text, "expected_setup_duration")) {
+		// res_text is set by validateDuration
 	} else if (expected_codec != "" && expected_codec != codec) {
 		res_text = "Expected codec " + expected_codec + " != " + codec + " actual";
 	} else if (max_duration && max_duration < connect_duration) {

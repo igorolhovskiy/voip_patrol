@@ -22,3 +22,5 @@
 #define PJSUA_DISABLE_AUTO_SEND_100 1
 // Disable detection of merged requests
 # define PJSUA_DETECT_MERGED_REQUESTS   0
+// IPv6
+#define PJ_HAS_IPV6 1

@@ -220,6 +220,9 @@ class Config {
 		TransportId transport_id_udp{-1};
 		TransportId transport_id_tcp{-1};
 		TransportId transport_id_tls{-1};
+		TransportId transport_id_udp6{-1};
+		TransportId transport_id_tcp6{-1};
+		TransportId transport_id_tls6{-1};
 		int total_tasks_count;
 		int json_result_count;
 		Action action;

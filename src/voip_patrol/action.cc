@@ -108,7 +108,7 @@ float safe_atof(const char* str, float default_value) {
 		LOG(logERROR) << "safe_atof: null or empty string provided, using default value: " << default_value;
 		return default_value;
 	}
-	
+
 	// Basic validation for float format
 	const char* p = str;
 	if (*p == '+' || *p == '-') p++;
@@ -145,6 +145,101 @@ float safe_atof(const char* str, float default_value) {
 		return default_value;
 	}
 }
+
+namespace {
+
+	string normalize_transport_param(const string &transport) {
+		if (transport == "udp6") return "udp";
+		if (transport == "tcp6") return "tcp";
+		if (transport == "tls6") return "tls";
+		if (transport == "sips6") return "sips";
+		return transport;
+	}
+
+	bool uri_has_ipv6_host(string uri) {
+		auto lt = uri.find('<');
+		auto gt = uri.find('>');
+		if (lt != string::npos && gt != string::npos && gt > lt) {
+			uri = uri.substr(lt + 1, gt - lt - 1);
+		}
+
+		if (uri.compare(0, 5, "sips:") == 0)
+			uri = uri.substr(5);
+		else if (uri.compare(0, 4, "sip:") == 0)
+			uri = uri.substr(4);
+
+		auto at_pos = uri.find('@');
+		if (at_pos != string::npos)
+			uri = uri.substr(at_pos + 1);
+
+		auto param_pos = uri.find(';');
+		if (param_pos != string::npos)
+			uri = uri.substr(0, param_pos);
+
+		auto query_pos = uri.find('?');
+		if (query_pos != string::npos)
+			uri = uri.substr(0, query_pos);
+
+		if (!uri.empty() && uri.front() == '[') {
+			auto end = uri.find(']');
+			if (end != string::npos) {
+				auto inside = uri.substr(1, end - 1);
+				return inside.find(':') != string::npos;
+			}
+		}
+
+		return std::count(uri.begin(), uri.end(), ':') >= 2;
+	}
+
+	TransportId select_transport_id(const Config *config, const string &transport, const string &target_uri) {
+		string transport_lc = transport;
+		vp::tolower(transport_lc);
+		bool target_is_v6 = uri_has_ipv6_host(target_uri);
+
+		if (transport_lc == "udp6") return config->transport_id_udp6;
+		if (transport_lc == "tcp6") return config->transport_id_tcp6;
+		if (transport_lc == "tls6" || transport_lc == "sips6") return config->transport_id_tls6;
+
+		if (transport_lc == "udp") return target_is_v6 ? config->transport_id_udp6 : config->transport_id_udp;
+		if (transport_lc == "tcp") return target_is_v6 ? config->transport_id_tcp6 : config->transport_id_tcp;
+		if (transport_lc == "tls" || transport_lc == "sips")
+			return target_is_v6 ? config->transport_id_tls6 : config->transport_id_tls;
+
+		return -1;
+	}
+
+	bool is_ipv6_transport(const string &transport) {
+      	string transport_lc = transport;
+      	vp::tolower(transport_lc);
+      	return transport_lc == "udp6" || transport_lc == "tcp6" ||
+               transport_lc == "tls6" || transport_lc == "sips6";
+    }
+
+	void apply_ipv6_account_config(AccountConfig &acc_cfg, const Config *config, const string &target_uri, const string &transport = "") {
+		bool explicit_ipv6_transport = is_ipv6_transport(transport);
+		bool ipv6_target = uri_has_ipv6_host(target_uri);
+
+		if (!ipv6_target && !explicit_ipv6_transport) {
+			return;
+		}
+		if (explicit_ipv6_transport) {
+			LOG(logINFO) << __FUNCTION__ << ": Enabling IPv6 transport and media";
+
+			acc_cfg.mediaConfig.ipv6Use = PJSUA_IPV6_ENABLED_PREFER_IPV6;
+		} else {
+			LOG(logINFO) << __FUNCTION__ << ": Enabling IPv6 transport and IPv4 media";
+
+			acc_cfg.mediaConfig.ipv6Use = PJSUA_IPV6_ENABLED_PREFER_IPV4;
+		}
+
+		if (!config->ip_cfg.bound_address.empty()) {
+			acc_cfg.mediaConfig.transportConfig.boundAddress = config->ip_cfg.bound_address;
+		}
+		if (!config->ip_cfg.public_address.empty()) {
+			acc_cfg.mediaConfig.transportConfig.publicAddress = config->ip_cfg.public_address;
+		}
+	}
+} // namespace
 
 Action::Action(Config *cfg) : config{cfg} {
 	init_actions_params();
@@ -510,6 +605,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 		return;
 	}
 	vp::tolower(transport);
+	string transport_param = normalize_transport_param(transport);
 
 	if (account_name.empty()) {
 		account_name = username;
@@ -572,10 +668,20 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	AccountConfig acc_cfg;
 
 	setTurnConfigAccount(acc_cfg, config, disable_turn);
+	apply_ipv6_account_config(acc_cfg, config, registrar, transport);
+
+	TransportId transport_id = select_transport_id(config, transport, registrar);
+	if (transport_id == -1 && !transport.empty()) {
+		LOG(logERROR) << __FUNCTION__ << ": transport not supported for registrar: " << registrar;
+		return;
+	}
+	if (transport_id != -1) {
+		acc_cfg.sipConfig.transportId = transport_id;
+	}
 
 	if (reg_id != "" || instance_id != "") {
 		LOG(logINFO) << __FUNCTION__ << " reg_id:" << reg_id << " instance_id:" << instance_id;
-		if (transport == "udp") {
+		if (transport_param == "udp") {
 			LOG(logINFO) << __FUNCTION__ << " oubound rfc5626 not supported on transport UDP" << std::endl;
 		} else {
 			acc_cfg.natConfig.sipOutboundUse = true;
@@ -591,7 +697,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 		acc_cfg.regConfig.headers.push_back(x_hdr);
 	}
 
-	if (transport == "tcp") {
+	if (transport_param == "tcp") {
 		acc_cfg.idUri = "sip:" + account_aor + ";transport=tcp";
 		acc_cfg.regConfig.registrarUri = "sip:" + registrar + ";transport=tcp";
 
@@ -602,8 +708,8 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 
 			LOG(logINFO) << __FUNCTION__ << " SIP TCP proxies:<sip:" << proxy  << ";transport=tcp>" << std::endl;
 		}
-	} else if (transport == "tls") {
-		if (config->transport_id_tls == -1) {
+	} else if (transport_param == "tls") {
+		if (transport_id == -1) {
 			LOG(logERROR) << __FUNCTION__ << " TLS transport not supported";
 			return;
 		}
@@ -617,8 +723,8 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 
 			LOG(logINFO) << __FUNCTION__ << " SIP TLS proxies:<sip:" << proxy  << ";transport=tls>" << std::endl;
 		}
-	} else if (transport == "sips") {
-		if (config->transport_id_tls == -1) {
+	} else if (transport_param == "sips") {
+		if (transport_id == -1) {
 			LOG(logERROR) << __FUNCTION__ << " TLS transport not supported";
 
 			return;
@@ -776,6 +882,8 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	filter_accountname(&account_name);
 
 	vp::tolower(transport);
+	string transport_param = normalize_transport_param(transport);
+
 	std::transform(expected_codec.begin(), expected_codec.end(), expected_codec.begin(), ::tolower);
 
 	TestAccount *acc = config->findAccount(account_name);
@@ -783,26 +891,26 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		AccountConfig acc_cfg;
 
 		setTurnConfigAccount(acc_cfg, config, disable_turn);
+		apply_ipv6_account_config(acc_cfg, config, account_name, transport);
 
 		if (!force_contact.empty()){
 			LOG(logINFO) << __FUNCTION__ << ":do_accept:force_contact:" << force_contact << "\n";
 			acc_cfg.sipConfig.contactForced = force_contact;
 		}
 
-		if (!transport.empty()) {
-			if (transport == "tcp") {
-				acc_cfg.sipConfig.transportId = config->transport_id_tcp;
-			} else if (transport == "udp") {
-				acc_cfg.sipConfig.transportId = config->transport_id_udp;
-			} else if (transport == "tls" || transport == "sips") {
-				if (config->transport_id_tls == -1) {
-					LOG(logERROR) << __FUNCTION__ << ": TLS transport not supported.";
-					return;
-				}
-				acc_cfg.sipConfig.transportId = config->transport_id_tls;
-			}
+		TransportId transport_id = select_transport_id(config, transport, account_name);
+		if (transport_id == -1 && !transport.empty()) {
+			LOG(logERROR) << __FUNCTION__ << ": transport not supported for account: " << account_name;
+			return;
 		}
-		if (acc_cfg.sipConfig.transportId == config->transport_id_tls && transport == "sips") {
+		if (transport_id != -1) {
+			acc_cfg.sipConfig.transportId = transport_id;
+		}
+		if (transport_param == "sips") {
+			if (transport_id == -1) {
+				LOG(logERROR) <<__FUNCTION__<<": TLS transport not supported.";
+				return;
+			}
 			acc_cfg.idUri = "sips:" + account_name;
 		} else {
 			acc_cfg.idUri = "sip:" + account_name;
@@ -995,17 +1103,22 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		return;
 	}
 	vp::tolower(transport);
+	string transport_param = normalize_transport_param(transport);
+
 	std::transform(expected_codec.begin(), expected_codec.end(), expected_codec.begin(), ::tolower);
 
 	string account_uri {caller};
-	if (transport != "udp") {
-		account_uri = caller + ";transport=" + transport;
+	if (transport_param != "udp") {
+		account_uri = caller + ";transport=" + transport_param;
 	}
 	TestAccount* acc = config->findAccount(account_uri);
 	if (!acc) {
 		AccountConfig acc_cfg;
 
 		setTurnConfigAccount(acc_cfg, config, disable_turn);
+
+		string target_uri = to_uri.empty() ? callee : to_uri;
+		apply_ipv6_account_config(acc_cfg, config, target_uri, transport);
 
 		if (force_contact != "") {
 			LOG(logINFO) << __FUNCTION__ << ":do_call:force_contact:" << force_contact << "\n";
@@ -1025,7 +1138,16 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			LOG(logINFO) << __FUNCTION__ << ": session timer[" << timer << "] : " << acc_cfg.callConfig.timerUse ;
 		}
 
-		if (transport == "tcp") {
+		TransportId transport_id = select_transport_id(config, transport, target_uri);
+		if (transport_id == -1 && !transport.empty()) {
+			LOG(logERROR) << __FUNCTION__ << ": transport not supported for target: " << target_uri;
+			return;
+		}
+		if (transport_id != -1) {
+			acc_cfg.sipConfig.transportId = transport_id;
+		}
+
+		if (transport_param == "tcp") {
 			acc_cfg.idUri = "sip:" + account_uri;
 
 			LOG(logINFO) << __FUNCTION__ << " Account TCP idUri: <" << acc_cfg.idUri << ">" << std::endl;
@@ -1035,8 +1157,8 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 				LOG(logINFO) << __FUNCTION__ << " Account TCP proxies: <sip:" << proxy << ";transport=tcp>" << std::endl;
 			}
-		} else if (transport == "tls") {
-			if (config->transport_id_tls == -1) {
+		} else if (transport_param == "tls") {
+			if (transport_id == -1) {
 				LOG(logERROR) << __FUNCTION__ << ": TLS transport not supported" ;
 
 				return;
@@ -1050,8 +1172,8 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 
 				LOG(logINFO) << __FUNCTION__ << " Account TLS proxies: <sip:" << proxy << ";transport=tls>" << std::endl;
 			}
-		} else if (transport == "sips") {
-			if (config->transport_id_tls == -1) {
+		} else if (transport_param == "sips") {
+			if (transport_id == -1) {
 				LOG(logERROR) << __FUNCTION__ << ": sips(TLS) transport not supported" ;
 
 				return;
@@ -1190,7 +1312,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		LOG(logINFO) << "call->test:" << test << " " << call->test->type;
 		LOG(logINFO) << "calling :" << callee;
 
-		if (transport == "tls") {
+		if (transport_param == "tls") {
 			if (!to_uri.empty() && !safe_string_starts_with(to_uri, "sip")) {
 				to_uri = "sip:" + to_uri + ";transport=tls";
 			}
@@ -1199,7 +1321,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
-		} else if (transport == "sips") {
+		} else if (transport_param == "sips") {
 			if (!to_uri.empty() && !safe_string_starts_with(to_uri, "sips")) {
 				to_uri = "sips:" + to_uri;
 			}
@@ -1208,7 +1330,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			} catch (pj::Error& e)  {
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
-		} else if (transport == "tcp") {
+		} else if (transport_param == "tcp") {
 			if (!to_uri.empty() && !safe_string_starts_with(to_uri, "sip")) {
 				to_uri = "sip:" + to_uri + ";transport=tcp";
 			}
@@ -1302,15 +1424,33 @@ void Action::do_message(const vector<ActionParam> &params, const vector<ActionCh
 	bCfg.subscribe = false;
 
 	TestAccount *acc = config->findAccount(from);
+
 	string account_uri = from;
+	string target_uri = to_uri;
+
 	vp::tolower(transport);
-	if (transport != "udp") {
-		 account_uri = "sip:" + account_uri + ";transport=" + transport;
+	string transport_param = normalize_transport_param(transport);
+
+	if (transport_param != "udp") {
+		 account_uri = "sip:" + account_uri + ";transport=" + transport_param;
+		 to_uri = to_uri + ";transport=" + transport_param;
 	} else {
 		 account_uri = "sip:" + account_uri;
 	}
 	if (!acc) { // account not found, creating one
 		AccountConfig acc_cfg;
+
+		apply_ipv6_account_config(acc_cfg, config, target_uri, transport);
+
+		TransportId transport_id = select_transport_id(config, transport, target_uri);
+		if (transport_id == -1 && !transport.empty()) {
+			LOG(logERROR) << __FUNCTION__ << ": transport not supported for target: " << target_uri;
+			return;
+		}
+		if (transport_id != -1) {
+			acc_cfg.sipConfig.transportId = transport_id;
+		}
+
 		acc_cfg.idUri = account_uri;
 		acc_cfg.sipConfig.authCreds.push_back(AuthCredInfo("digest", realm, username, 0, password));
 
@@ -1371,25 +1511,27 @@ void Action::do_accept_message(const vector<ActionParam> &params, const vector<A
 		return;
 	}
 	vp::tolower(transport);
+	string transport_param = normalize_transport_param(transport);
 
 	TestAccount *acc = config->findAccount(account_name);
 	AccountConfig acc_cfg;
 	if (!acc) {
-		if (!transport.empty()) {
-			if (transport == "tcp") {
-				acc_cfg.sipConfig.transportId = config->transport_id_tcp;
-			} else if (transport == "udp") {
-				acc_cfg.sipConfig.transportId = config->transport_id_udp;
-			} else if (transport == "tls" || transport == "sips") {
-				if (config->transport_id_tls == -1) {
-					LOG(logERROR) <<__FUNCTION__<<": TLS transport not supported.";
 
-					return;
-				}
-				acc_cfg.sipConfig.transportId = config->transport_id_tls;
-			}
+		apply_ipv6_account_config(acc_cfg, config, account_name, transport);
+		TransportId transport_id = select_transport_id(config, transport, account_name);
+
+		if (transport_id == -1 && !transport.empty()) {
+			LOG(logERROR) << __FUNCTION__ << ": transport not supported for account: " << account_name;
+			return;
 		}
-		if (acc_cfg.sipConfig.transportId == config->transport_id_tls && transport == "sips") {
+		if (transport_id != -1) {
+			acc_cfg.sipConfig.transportId = transport_id;
+		}
+		if (transport_param == "sips") {
+			if (transport_id == -1) {
+				LOG(logERROR) << __FUNCTION__ << ": TLS transport not supported.";
+				return;
+			}
 			acc_cfg.idUri = "sips:" + account_name;
 		} else {
 			acc_cfg.idUri = "sip:" + account_name;

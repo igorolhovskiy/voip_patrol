@@ -14,17 +14,16 @@ This is a fork of the [original project](https://github.com/jchavanton/voip_patr
 
 In general, I'm trying to follow the original project features and changes, but don't expect, that your existing advanced scenarios from the original project will work with this fork, but the simple ones will work without any modifications.
 
-## VoIP signaling and media test automaton
+## VoIP signaling and media test automation
 Designed to automate end2end and or integration tests.
 
 VoIP patrol will follow a scenario in XML format and will output results in JSON.
 
-Each line in the output file is a separate JSON structure, note that the entire file is not a valid JSON file,
-this is because VoIP patrol will output results as they become available.
+Each line in the output file is a separate JSON structure, note that the entire file is not a valid JSON file, this is because VoIP patrol will output results as they become available.
 
-It is possible to test many scenarios that are not easy to test manually like a re-invite with a new codec.
+It is possible to test many scenarios that are not easy to test manually like a re-invite with a new codec. Or mix of IPv4/IPv6 calls.
 
-This version is extension of [original project](https://github.com/jchavanton/voip_patrol) and contains changes (in reports and configuration), that are not compatible with original version
+This version is extension of [original project](https://github.com/jchavanton/voip_patrol) and contains changes (in reports and configuration), that are not compatible with original version.
 
 ### Docker quick start
 [quick start with docker](QUICK_START.md)
@@ -408,7 +407,7 @@ DISCONNECTED
 | auth_username | string | authentication username on INVITE |
 | password | string | password used on INVITE |
 | realm | string | realm use for authentication on INVITE. If empty - any auth realm is allowed |
-| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, `wss` |
+| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, `tcp6`, `udp6`, `tls6`, `sips6` |
 | contact_uri_params | string | string, that will be added to Contact URI as params |
 | play | string | path to file to play upon answer |
 | record | string | path to file to record audio upon answer. Can be `auto`, in this case filename would be `/srv/<call_id>_<remote_contact>_rec.wav` |
@@ -441,7 +440,7 @@ DISCONNECTED
 | aor | string | Account Address Of Record. if not specified - `<usename@registrar>` |
 | contact_uri_params | string | string, that will be added to Contact URI as params |
 | registrar | string | SIP UAS handling registration where the messages will be sent |
-| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, `wss` |
+| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, , `tcp6`, `udp6`, `tls6`, `sips6` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add "DTLS-SRTP" support, `force` - make SRTP mandatory. Used for incoming calls to this account |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account. Used for incoming calls to this account |
@@ -457,7 +456,7 @@ DISCONNECTED
 | ---- | ---- | ----------- |
 | from | string | From header complete "\&quot;Display Name\&quot; <sip:test at 127.0.0.1>"  |
 | to_uri | string | used@host part of the URI in the To header |
-| transport | string | force a specific transport <tcp,udp,tls> |
+| transport | string | force a specific transport <tcp,udp,tls,tcp6,udp6,tls6> |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | username | string | authentication username, account name, From/To/Contact header user part |
 | password | string | authentication password |

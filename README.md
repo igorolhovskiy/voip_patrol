@@ -85,7 +85,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
     <action type="accept"
             match_account="default"
             hangup="5"
-            play_dtmf="0123456789#*"
+            play_dtmf="012W34w56WW789#*"
             play="voice_ref_files/f.wav"
             code="200" reason="YES"
             ring_duration="5"
@@ -383,7 +383,7 @@ DISCONNECTED
 | play | string | path to file to play upon answer |
 | record | string | path to file to record audio upon answer. Can be `auto`, in this case filename would be `/srv/<call_id>_<remote_contact>_rec.wav` |
 | record_early | bool | if `true` early media will be also recorded |
-| play_dtmf | string | list of DTMF symbols to be sent upon answer |
+| play_dtmf | string | list of DTMF symbols to be sent upon answer. Supports [Asterisk](https://docs.asterisk.org/Latest_API/API_Documentation/Dialplan_Applications/SendDTMF/#arguments)-like syntax, namely `w` for a half second pause, `W` for a one second pause |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
 | min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |
@@ -412,7 +412,7 @@ DISCONNECTED
 | play | string | path to file to play upon answer |
 | record | string | path to file to record audio upon answer. Can be `auto`, in this case filename would be `/srv/<call_id>_<remote_contact>_rec.wav` |
 | record_early | bool | if `true` early media will be also recorded |
-| play_dtmf | string | list of DTMF symbols to be sent upon answer |
+| play_dtmf | string | list of DTMF symbols to be sent upon answer. Supports [Asterisk](https://docs.asterisk.org/Latest_API/API_Documentation/Dialplan_Applications/SendDTMF/#arguments)-like syntax, namely `w` for a half second pause, `W` for a one second pause |
 | re_invite_interval | int | Interval in seconds at which a re-invite with SDP will be sent |
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
 | min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |

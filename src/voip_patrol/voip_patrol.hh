@@ -335,6 +335,12 @@ class Test {
 		std::string rtp_stats_json;
 		std::string play;
 		std::string play_dtmf;
+		struct DtmfSequenceItem {
+			int delay_ms;
+			std::string digits;
+		};
+		std::vector<DtmfSequenceItem> dtmf_sequence;
+		int dtmf_seq_index {0};
 		std::string srtp;
 		int call_count {-1};
 		bool rtp_stats_ready{false};

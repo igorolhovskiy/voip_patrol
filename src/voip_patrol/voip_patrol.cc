@@ -341,6 +341,26 @@ static std::vector<Test::DtmfSequenceItem> parseDtmfSequence(const std::string &
 
 static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const char *caller_contact ) {
 	pj_status_t status = PJ_SUCCESS;
+
+	int call_conf_port = pjsua_call_get_conf_port(call_id);
+
+	LOG(logINFO) << __FUNCTION__ << ": [player] current call conf id:" << call_conf_port;
+
+	if (call_conf_port == -1) {
+		LOG(logINFO) << __FUNCTION__ << ": [error] cannot get call_conf_port for callid:" << call_id << std::endl;
+		return PJ_FALSE;
+	}
+
+	// Echo mode: loop incoming audio back to the remote party.
+	if (call->test->play == "echo") {
+		LOG(logINFO) << __FUNCTION__ << ": [stream_to_call] echo mode — looping call audio";
+		status = pjsua_conf_connect(call_conf_port, call_conf_port);
+		if (status != PJ_SUCCESS) {
+			LOG(logINFO) << __FUNCTION__ << ": [error] connecting echo loopback: " << status;
+		}
+		return status;
+	}
+
 	// Create a player if none.
 	if (!call->player.is_valid()) {
 		LOG(logINFO) <<__FUNCTION__<< ": [stream_to_call] streaming file: " << call->test->play;
@@ -352,15 +372,6 @@ static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const c
 		}
 	}
 	LOG(logINFO) <<__FUNCTION__<< ": connecting player_id[" << call->player.get_id() << "]";
-
-	int call_conf_port = pjsua_call_get_conf_port(call_id);
-
-	LOG(logINFO) <<__FUNCTION__<<": [player] current call conf id:" << call_conf_port;
-
-	if (call_conf_port == -1) {
-		LOG(logINFO) << __FUNCTION__ << ": [error] cannot get call_conf_port for callid:" << call_id << "\n";
-		return PJ_FALSE;
-	}
 
 	status = pjsua_conf_connect(call->player.get_conf_port(), call_conf_port);
 	if (status != PJ_SUCCESS) {
@@ -393,7 +404,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 		status = call->recorder.create(&rec_file_name, 0, NULL, -1, 0);
 
 		if (status != PJ_SUCCESS) {
-			LOG(logINFO) << __FUNCTION__ << ": [error] record_call:" << status << "\n";
+			LOG(logINFO) << __FUNCTION__ << ": [error] record_call:" << status << std::endl;
 			return status;
 		}
 
@@ -405,7 +416,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 	LOG(logINFO) <<__FUNCTION__<<": [recorder] current call conf id:" << call_conf_port;
 
 	if (call_conf_port == -1) {
-		LOG(logINFO) << __FUNCTION__ << ": [error] cannot get call_conf_port for callid:" << call_id << "\n";
+		LOG(logINFO) << __FUNCTION__ << ": [error] cannot get call_conf_port for callid:" << call_id << std::endl;
 
 		return PJ_FALSE;
 	}
@@ -413,7 +424,7 @@ static pj_status_t record_call(TestCall* call, pjsua_call_id call_id, const char
 	status = pjsua_conf_connect(call_conf_port, call->recorder.get_conf_port());
 
 	if (status != PJ_SUCCESS) {
-		LOG(logINFO) << __FUNCTION__ << ": [error] connect status:" << status << "\n";
+		LOG(logINFO) << __FUNCTION__ << ": [error] connect status:" << status << std::endl;
 	}
 
 	return status;
@@ -889,10 +900,11 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 	}
 	// Create player and recorder
 	if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
+		// Parse DTMF sequence if present
 		if (test->play_dtmf.length() > 0) {
 			test->dtmf_sequence = parseDtmfSequence(test->play_dtmf);
 			test->dtmf_seq_index = 0;
-			LOG(logINFO) <<__FUNCTION__<<": [dtmf] parsed " << test->dtmf_sequence.size() << " chunks from: " << test->play_dtmf;
+			LOG(logINFO) << __FUNCTION__ << ": [dtmf] parsed " << test->dtmf_sequence.size() << " chunks from: " << test->play_dtmf;
 		}
 
 		stream_to_call(this, ci.id, test->remote_user.c_str());
@@ -1418,7 +1430,7 @@ ResultFile::ResultFile(const std::string& name) : name(name) {
 
 bool ResultFile::write(const std::string& res) {
 	try {
-		file << res << "\n";
+		file << res << std::endl;
 	} catch (Error & err) {
 		LOG(logINFO) <<__FUNCTION__<< "Exception: " << err.info() ;
 		return false;
@@ -1433,7 +1445,7 @@ void ResultFile::flush() {
 bool ResultFile::open() {
 	file.open(name.c_str(), std::fstream::in | std::fstream::out | std::fstream::app);
 	if (file.is_open()) {
-		LOG(logINFO) << "JSON result file:" << name << "\n";
+		LOG(logINFO) << "JSON result file:" << name << std::endl;
 
 		return true;
 	}

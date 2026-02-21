@@ -380,7 +380,7 @@ DISCONNECTED
 | call_count | int | The amount of calls to receive to consider the command completed, default `-1` (considered completed) |
 | transport | string | Force a specific transport for all messages on accepted calls, default to all transport available |
 | force_contact | string | optional URI to be put as Contact for accept account. Helps bypass NAT-related issues during inbound call testing |
-| play | string | path to file to play upon answer or `echo` to loop back received audio. Note, in this case `record` will not work |
+| play | string | path to file to play upon answer or `echo` to loop back received audio. Note, in a case of `echo` option, `record` is ignored |
 | record | string | path to file to record audio upon answer. Can be `auto`, in this case filename would be `/srv/<call_id>_<remote_contact>_rec.wav` |
 | record_early | bool | if `true` early media will be also recorded |
 | play_dtmf | string | list of DTMF symbols to be sent upon answer. Supports [Asterisk](https://docs.asterisk.org/Latest_API/API_Documentation/Dialplan_Applications/SendDTMF/#arguments)-like syntax, namely `w` for a half second pause, `W` for a one second pause |
@@ -409,7 +409,7 @@ DISCONNECTED
 | realm | string | realm use for authentication on INVITE. If empty - any auth realm is allowed |
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, `tcp6`, `udp6`, `tls6`, `sips6` |
 | contact_uri_params | string | string, that will be added to Contact URI as params |
-| play | string | path to file to play upon answer or `echo` to loop back received audio. Note, in this case `record` will not work |
+| play | string | path to file to play upon answer or `echo` to loop back received audio. Note, in a case of `echo` option, `record` is ignored |
 | record | string | path to file to record audio upon answer. Can be `auto`, in this case filename would be `/srv/<call_id>_<remote_contact>_rec.wav` |
 | record_early | bool | if `true` early media will be also recorded |
 | play_dtmf | string | list of DTMF symbols to be sent upon answer. Supports [Asterisk](https://docs.asterisk.org/Latest_API/API_Documentation/Dialplan_Applications/SendDTMF/#arguments)-like syntax, namely `w` for a half second pause, `W` for a one second pause |

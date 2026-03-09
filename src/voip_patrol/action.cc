@@ -256,6 +256,7 @@ vector<ActionParam> Action::get_params(string name) {
 	else if (name.compare("turn") == 0) return do_turn_params;
 	else if (name.compare("message") == 0) return do_message_params;
 	else if (name.compare("accept_message") == 0) return do_accept_message_params;
+	else if (name.compare("bxfer") == 0) return do_bxfer_params;
 	vector<ActionParam> empty_params;
 	return empty_params;
 }
@@ -451,6 +452,11 @@ void Action::init_actions_params() {
 	do_accept_message_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_accept_message_params.push_back(ActionParam("label", false, APType::apt_string));
 	do_accept_message_params.push_back(ActionParam("message_count", false, APType::apt_integer));
+	// do_bxfer
+	do_bxfer_params.push_back(ActionParam("caller", true, APType::apt_string));
+	do_bxfer_params.push_back(ActionParam("to_uri", true, APType::apt_string));
+	do_bxfer_params.push_back(ActionParam("label", false, APType::apt_string));
+	do_bxfer_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer, "", 200));
 }
 
 void setTurnConfigAccount(AccountConfig &acc_cfg, Config *cfg, bool disable_turn) {
@@ -1004,7 +1010,6 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->expected_setup_duration_range = expected_setup_duration_range;
 	acc->expected_codec = expected_codec;
 }
-
 
 void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const SipHeaderVector &x_headers) {
 	string type {"call"};
@@ -1565,7 +1570,7 @@ void Action::do_codec(const vector<ActionParam> &params) {
 		else if (param.name.compare("priority") == 0) priority = param.i_val;
 		else if (param.name.compare("disable") == 0) disable = param.s_val;
 	}
-	LOG(logINFO) << __FUNCTION__ << " enable["<<enable<<"] with priority["<<priority<<"] disable["<<disable<<"]";
+	LOG(logINFO) << __FUNCTION__ << " enable[" << enable << "] with priority[" << priority << "] disable[" << disable << "]";
 	if (!config->ep) {
 		LOG(logERROR) << __FUNCTION__ << " PJSIP endpoint not available";
 		return;
@@ -1591,6 +1596,114 @@ void Action::do_alert(const vector<ActionParam> &params) {
 	config->alert_server_url = smtp_host;
 }
 
+void Action::do_bxfer(const vector<ActionParam> &params) {
+	string caller {};
+	string to_uri {};
+	string label {"bxfer"};
+	int expected_cause_code {200};
+
+	for (auto &param : params) {
+		if (param.name == "caller") caller = param.s_val;
+		else if (param.name == "to_uri") to_uri = param.s_val;
+		else if (param.name == "label") label = param.s_val;
+		else if (param.name == "expected_cause_code") expected_cause_code = param.i_val;
+	}
+
+	// Create a test record immediately so any early failure can be reported via update_result()
+	Test *test = new Test(config, "bxfer");
+	test->label = label;
+	test->local_user = caller;
+	test->remote_user = to_uri;
+	test->expected_cause_code = expected_cause_code;
+
+	if (caller.empty() || to_uri.empty()) {
+		LOG(logERROR) << __FUNCTION__ << ": missing caller or to_uri";
+
+		test->result_cause_code = 0;
+		test->reason = "missing caller or to_uri";
+		test->update_result();
+		return;
+	}
+
+	// Normalise to_uri: add sip: scheme if the caller omitted it
+	if (to_uri.find("sip:") != 0 && to_uri.find("sips:") != 0) {
+		to_uri = "sip:" + to_uri;
+	}
+
+	// Find account: try full URI first, then fall back to bare username
+	TestAccount *caller_acc = config->findAccount(caller);
+	if (!caller_acc) {
+		// Strip host part (user@host → user) and scheme prefix (sip:user → user)
+		string caller_user = caller;
+		size_t at = caller_user.find('@');
+		if (at != string::npos) {
+			caller_user = caller_user.substr(0, at);
+		}
+		size_t colon = caller_user.rfind(':');
+		if (colon != string::npos) {
+			caller_user = caller_user.substr(colon + 1);
+		}
+		caller_acc = config->findAccount(caller_user);
+	}
+
+	if (!caller_acc) {
+		LOG(logERROR) << __FUNCTION__ << ": account not found for caller: " << caller;
+
+		test->result_cause_code = 0;
+		test->reason = "caller account not found";
+		test->update_result();
+		return;
+	}
+
+	// Find a CONFIRMED call on that account to send the REFER on
+	TestCall *target_call = nullptr;
+	// Lock the call list
+	config->checking_calls.lock();
+	for (auto call : config->calls) {
+		if (call->acc != caller_acc || !call->test) continue;
+		try {
+			CallInfo ci = call->getInfo();
+			if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
+				target_call = call;
+				break;
+			}
+		} catch (pj::Error &e) {
+			LOG(logERROR) << __FUNCTION__ << ": iteration over calls failed: " << e.reason;
+		}
+	}
+
+	if (!target_call) {
+		LOG(logERROR) << __FUNCTION__ << ": no CONFIRMED call on account: " << caller;
+
+		config->checking_calls.unlock();
+		test->result_cause_code = 0;
+		test->reason = "no confirmed call found";
+		test->update_result();
+		return;
+	}
+
+	// Attach the test to the call so onCallTransferStatus() can report the results
+	target_call->refer_test = test;
+	try {
+		CallOpParam prm;
+		target_call->xfer(to_uri, prm);
+		// refer_sent=true prevents do_wait from hanging up the call before the NOTIFY arrives
+		target_call->refer_sent = true;
+
+		LOG(logINFO) << __FUNCTION__ << ": REFER sent to " << to_uri << " from call " << target_call->getId();
+	} catch (pj::Error &e) {
+		// REFER could not be sent; detach test and report failure immediately
+		LOG(logERROR) << __FUNCTION__ << ": xfer failed: " << e.reason;
+
+		target_call->refer_test = nullptr;
+		test->result_cause_code = 0;
+		test->reason = "xfer() failed: " + e.reason;
+		test->update_result();
+	}
+	config->checking_calls.unlock();
+}
+
+// Main polling loop that drives call and account test lifecycle.
 void Action::do_wait(const vector<ActionParam> &params) {
 	int duration_ms = 0;
 	bool complete_all = false;
@@ -1608,11 +1721,14 @@ void Action::do_wait(const vector<ActionParam> &params) {
 
 	bool completed = false;
 	int tests_running = 0;
+	// status_update gates one-shot log lines so they don't flood on every 10ms iteration
 	bool status_update = true;
 
 	while (!completed) {
 
-		// insert any incomming call received in another thread.
+		// Incoming calls are accepted on the PJSIP network thread and queued in new_calls.
+		// Move them into the main calls list here, on the wait-loop thread, to avoid
+		// touching config->calls from two threads simultaneously.
 		config->new_calls_lock.lock();
 		if (!config->new_calls.empty()) {
 			auto it = config->new_calls.begin();
@@ -1621,6 +1737,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 		}
 		config->new_calls_lock.unlock();
 
+		// Account-level tests (e.g. registration): clean up finished ones and count active ones.
 		for (auto & account : config->accounts) {
 			AccountInfo acc_inf = account->getInfo();
 
@@ -1640,7 +1757,8 @@ void Action::do_wait(const vector<ActionParam> &params) {
 			}
 		}
 
-		// prevent calls destruction while parsing looking at them
+		// Hold the mutex for the entire call-scan block so that PJSIP callbacks
+		// (running on the network thread) cannot destroy calls while we inspect them.
 		config->checking_calls.lock();
 
 		for (auto & call : config->calls) {
@@ -1656,6 +1774,9 @@ void Action::do_wait(const vector<ActionParam> &params) {
 						     << ci.callIdString << "][" << ci.remoteUri << "][" << ci.stateText << "|" << ci.state << "]duration["
 						     << ci.connectDuration.sec << ">=" << call->test->hangup_duration<< "]";
 				}
+
+				// --- Pre-answer state: CALLING / EARLY / INCOMING ---
+				// Drive the answer sequence: response_delay → ring_duration → final answer (or cancel).
 				if (ci.state == PJSIP_INV_STATE_CALLING || ci.state == PJSIP_INV_STATE_EARLY || ci.state == PJSIP_INV_STATE_INCOMING)  {
 					Test *test = call->test;
 					if (test->response_delay > 0 && ci.totalDuration.sec >= test->response_delay && ci.state == PJSIP_INV_STATE_INCOMING) {
@@ -1666,6 +1787,8 @@ void Action::do_wait(const vector<ActionParam> &params) {
 						prm_100.statusCode = PJSIP_SC_TRYING;
 						call->answer(prm_100);
 
+						// If ring_duration is set, send 180/183 first; the final answer
+						// will be sent on the next iteration once ring_duration elapses.
 						if (test->ring_duration > 0) {
 
 							prm.statusCode = PJSIP_SC_RINGING;
@@ -1686,6 +1809,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 						LOG(logINFO) << " Answering call[" << call->getId() << "] with " << prm.statusCode << " on call time: " << ci.totalDuration.sec;
 
 					} else if (test->ring_duration > 0 && ci.totalDuration.sec >= (test->ring_duration + test->response_delay)) {
+						// Ring duration elapsed — send the final answer now
 						CallOpParam prm;
 						prm.reason = "OK";
 
@@ -1699,26 +1823,26 @@ void Action::do_wait(const vector<ActionParam> &params) {
 
 						call->answer(prm);
 					} else if (test->max_ring_duration && (test->max_ring_duration + test->response_delay) <= ci.totalDuration.sec) {
+						// Caller gave up waiting — cancel the unanswered call
 						LOG(logINFO) << __FUNCTION__ << "[cancelling:call][" << call->getId() << "][test][" << (ci.role==0?"CALLER":"CALLEE") << "]["
 						     << ci.callIdString << "][" << ci.remoteUri << "][" << ci.stateText << "|" << ci.state << "]duration["
 						     << ci.totalDuration.sec << ">=(" << test->max_ring_duration << " + " << test->response_delay << ")]";
-						CallOpParam prm(true);
-						try {
-							pj_gettimeofday(&test->sip_latency.byeSentTs);
-							call->hangup(prm);
-						} catch (pj::Error& e)  {
-							if (e.status != 171140) {
-								LOG(logERROR) << __FUNCTION__ << " error :" << e.status;
-							}
-						}
+						pj_gettimeofday(&test->sip_latency.byeSentTs);
+						// Hangup is deferred via timer for the same reason as in the CONFIRMED branch:
+						// calling it directly from this loop can race with PJSIP's dialog mutex.
+						call->acc->config->ep->utilTimerSchedule(0, (Token)call);
 					}
+
+				// --- Connected state: CONFIRMED ---
+				// Drive in-call features (re-INVITE, DTMF) and enforce hangup_duration.
 				} else if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
 					std::string res = "call[" + std::to_string(ci.lastStatusCode) + "] reason[" + ci.lastReason + "]";
 					call->test->connect_duration = ci.connectDuration.sec;
 					call->test->setup_duration = ci.totalDuration.sec - ci.connectDuration.sec;
 					call->test->result_cause_code = (int)ci.lastStatusCode;
 					call->test->reason = ci.lastReason;
-					// check re-invite
+
+					// Check re-invite: send a re-INVITE when re_invite_next seconds have elapsed
 					if (call->test->re_invite_interval && ci.connectDuration.sec >= call->test->re_invite_next){
 						if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
 							CallOpParam prm(true);
@@ -1735,13 +1859,15 @@ void Action::do_wait(const vector<ActionParam> &params) {
 							}
 						}
 					}
-					// check scheduled DTMF
+
+					// Check scheduled DTMF: send any digits whose delay_ms has been reached
 					if (call->test->dtmf_seq_index < (int)call->test->dtmf_sequence.size()) {
 						int connect_ms = ci.connectDuration.sec * 1000 + ci.connectDuration.msec;
 						while (call->test->dtmf_seq_index < (int)call->test->dtmf_sequence.size()
 						       && connect_ms >= call->test->dtmf_sequence[call->test->dtmf_seq_index].delay_ms) {
 							try {
 								call->dialDtmf(call->test->dtmf_sequence[call->test->dtmf_seq_index].digits);
+
 								LOG(logINFO) << __FUNCTION__ << " [dtmf] Sending sequence: " << call->test->dtmf_sequence[call->test->dtmf_seq_index].digits;
 							} catch (pj::Error& e) {
 								LOG(logERROR) << __FUNCTION__ << " [dtmf] error (" << e.status << "): " << e.reason;
@@ -1749,33 +1875,43 @@ void Action::do_wait(const vector<ActionParam> &params) {
 							call->test->dtmf_seq_index += 1;
 						}
 					}
-					// check hangup
+
+					// Check hangup: enforce hangup_duration once the call has been connected long enough
 					if (call->test->hangup_duration && ci.connectDuration.sec >= call->test->hangup_duration){
-						if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
-							CallOpParam prm(true);
-							LOG(logINFO) << "hangup : call in PJSIP_INV_STATE_CONFIRMED" ;
-							try {
+						if (call->refer_sent) {
+							// Keep the dialog alive while REFER is in progress.
+							// Hangup is deferred to onCallTransferStatus(final=true).
+							LOG(logDEBUG) << __FUNCTION__ << ": call[" << call->getId()
+							              << "] hangup_duration reached while REFER is active, waiting for final transfer status";
+						} else {
+							if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
+								LOG(logINFO) << "hangup : call in PJSIP_INV_STATE_CONFIRMED" ;
 								pj_gettimeofday(&call->test->sip_latency.byeSentTs);
-								call->hangup(prm);
-							} catch (pj::Error& e)  {
-								if (e.status != 171140) {
-									LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
-								}
+								// Defer hangup via timer: calling hangup() directly here can
+								// deadlock if a PJSIP callback holds the dialog mutex concurrently.
+								call->acc->config->ep->utilTimerSchedule(0, (Token)call);
 							}
+							call->test->update_result();
 						}
-						call->test->update_result();
 					}
 				}
+
+				// Count this call as a running test if complete_all is set or the test
+				// is explicitly waiting (VPT_RUN_WAIT) — both block loop exit.
 				if (complete_all || call->test->state == VPT_RUN_WAIT) {
 					tests_running += 1;
 				}
 			}
 		}
 
+		// Finalise any call tests that were waiting for async RTP statistics to arrive.
+		// Tests remain in this list until rtp_stats_ready is set by the RTP thread.
 		for (auto it = config->tests_with_rtp_stats.begin(); it != config->tests_with_rtp_stats.end();) {
 			if ((*it)->rtp_stats_ready) {
 				(*it)->update_result();
+
 				LOG(logINFO) << __FUNCTION__ << " erase test at position:" << std::distance(config->tests_with_rtp_stats.begin(), it);
+
 				it = config->tests_with_rtp_stats.erase(it);
 			} else {
 				tests_running += 1;
@@ -1785,11 +1921,13 @@ void Action::do_wait(const vector<ActionParam> &params) {
 		// calls, can now be destroyed
 		config->checking_calls.unlock();
 
+		// Exit condition 1: all tracked tests finished (only relevant when complete_all=true)
 		if (tests_running == 0 && complete_all) {
 			LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] no more tests are running, exiting... " << LOG_COLOR_END;
 			completed = true;
 		}
 
+		// Exit condition 2: timeout (duration_ms == -1 means no deadline)
 		if (duration_ms <= 0 && duration_ms != -1) {
 			LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] overall duration exceeded, exiting... " << LOG_COLOR_END;
 			completed = true;
@@ -1797,11 +1935,12 @@ void Action::do_wait(const vector<ActionParam> &params) {
 
 		if (tests_running > 0 && complete_all) {
 			if (status_update) {
-				LOG(logINFO) << __FUNCTION__ <<LOG_COLOR_ERROR<<": action[wait] active account tests or call tests in run_wait["<<tests_running<<"] <<<<"<<LOG_COLOR_END;
+				LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] active account tests or call tests in run_wait[" << tests_running<< "] <<<<" << LOG_COLOR_END;
 				status_update = false;
 			}
 			tests_running = 0;
 
+			// Wait "long" (100ms) for tests to complete
 			if (duration_ms > 0) {
 				duration_ms -= 100;
 			}
@@ -1809,9 +1948,11 @@ void Action::do_wait(const vector<ActionParam> &params) {
 			pj_thread_sleep(100);
 		} else {
 			if (status_update) {
-				LOG(logINFO) << __FUNCTION__ <<LOG_COLOR_ERROR<<": action[wait] just wait for " << duration_ms <<  " ms" <<LOG_COLOR_END;
+				LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] just wait for " << duration_ms <<  " ms" <<LOG_COLOR_END;
 				status_update = false;
 			}
+			// Wait "short" (10ms) while counting down a plain "wait",
+			// or spin indefinitely when duration_ms == -1 (no deadline set)
 			if (duration_ms > 0) {
 				duration_ms -= 10;
 				pj_thread_sleep(10);

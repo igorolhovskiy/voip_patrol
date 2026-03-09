@@ -175,6 +175,8 @@ class VoipPatrolEnpoint : public Endpoint {
 	public:
 		Config *config;
 		void setCodecs(string &list, int priority);
+		// Override for PJSUA endpoint for correct hangups
+		virtual void onTimer(const OnTimerParam &prm) override;
 	private:
 		void onSelectAccount(OnSelectAccountParam &param);
 };
@@ -412,6 +414,7 @@ class TestCall : public Call {
 		virtual void onCallRxOffer(OnCallTsxStateParam &prm);
 		virtual void onCallTsxState(OnCallTsxStateParam &prm);
 		virtual void onCallState(OnCallStateParam &prm);
+		virtual void onCallTransferStatus(OnCallTransferStatusParam &prm) override;
 		virtual void onStreamCreated(OnStreamCreatedParam &prm);
 		virtual void onCallMediaState(OnCallMediaStateParam &prm);
 		virtual void onCallMediaUpdate(OnCallMediaStateParam &prm);
@@ -419,13 +422,15 @@ class TestCall : public Call {
 		virtual void onDtmfDigit(OnDtmfDigitParam &prm);
 		void makeCall(const string &dst_uri, const CallOpParam &prm, const string &to_uri);
 		void hangup(const CallOpParam &prm);
-		
+
 		// RAII-managed resources for automatic cleanup
 		PjsuaRecorder recorder;
 		PjsuaPlayer player;
-		
+
 		int role;
 		int rtt;
+		bool refer_sent {false};
+		Test *refer_test {nullptr};
 		bool is_disconnecting(){return disconnecting;};
 		TestAccount *acc;
 	private:

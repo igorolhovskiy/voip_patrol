@@ -517,6 +517,35 @@ void TestCall::hangup(const CallOpParam &prm) {
 		Call::hangup(prm);
 }
 
+// Called for every NOTIFY received in response to the REFER we sent (SIP transfer).
+// prm.finalNotify is true only on the last NOTIFY (final transfer outcome).
+// Intermediate NOTIFYs (e.g. "100 Trying") are ignored — we only care about the final result.
+void TestCall::onCallTransferStatus(OnCallTransferStatusParam &prm) {
+	LOG(logINFO) << __FUNCTION__ << ": call[" << getId() << "] status=" << prm.statusCode
+	             << " final=" << prm.finalNotify;
+
+	if (!prm.finalNotify) {
+		return;
+	}
+	refer_sent = false;
+
+	// Record the final NOTIFY status code as the transfer result and emit the JSON line
+	if (refer_test) {
+		refer_test->result_cause_code = prm.statusCode;
+		refer_test->reason = prm.reason;
+		refer_test->update_result();
+		delete refer_test;
+		refer_test = nullptr;
+	}
+
+	// Hang up the caller leg now that the transfer is complete.
+	// We cannot call hangup() directly here because PJSIP holds the dialog mutex
+	// for the duration of this callback — a direct hangup() call would deadlock
+	// trying to re-acquire that same mutex.
+	// utilTimerSchedule(0, ...) fires the onTimer callback on the next event-loop
+	// iteration, outside the callback stack, where the mutex is no longer held.
+	acc->config->ep->utilTimerSchedule(0, (Token)this);
+}
 
 void TestCall::makeCall(const string &dst_uri, const CallOpParam &prm, const string &to_uri) {
 	pj_str_t pj_to_uri = str2Pj(dst_uri);
@@ -892,9 +921,14 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 				disconnecting = true;
 			}
 			if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
-				CallOpParam prm_hangup(true);
-				hangup(prm_hangup);
-				LOG(logINFO) <<__FUNCTION__<<": hangup ok";
+				if (refer_sent) {
+					LOG(logINFO) << __FUNCTION__ << ": hangup_duration reached on call[" << getId()
+					             << "] but REFER is active, waiting for transfer completion/timeout";
+				} else {
+					// Never call hangup() directly from callback context, defer to endpoint timer.
+					acc->config->ep->utilTimerSchedule(0, (Token)this);
+					LOG(logINFO) << __FUNCTION__ << ": deferred hangup scheduled";
+				}
 			}
 		}
 	}
@@ -1717,6 +1751,9 @@ replay:
 			} else if (action_type.compare("accept_message") == 0) {
 				total_tasks_count += 1;
 				action.do_accept_message(params, checks, x_hdrs);
+			} else if (action_type.compare("bxfer") == 0) {
+				total_tasks_count += 1;
+				action.do_bxfer(params);
 			}
 		}
 	}
@@ -1878,6 +1915,29 @@ void VoipPatrolEnpoint::setCodecs(string &name, int priority) {
 			LOG(logINFO) <<__FUNCTION__<< " codec id:" << c.codecId << " priority:" << unsigned(c.priority);
 		}
 	}
+}
+
+// Deferred hangup handler, scheduled by onCallTransferStatus() (or do_wait() in action.cc) via utilTimerSchedule().
+// Runs on the PJSIP event loop after the dialog mutex has been released, making it safe to call hangup() here.
+void VoipPatrolEnpoint::onTimer(const OnTimerParam &prm) {
+	TestCall *call = (TestCall *)prm.userData;
+	// Validate that the call is still tracked before touching it —
+	// it may have already been cleaned up between the timer being scheduled and firing
+	for (auto c : config->calls) {
+		if (c != call) {
+			continue;
+		}
+		call->refer_sent = false;
+		CallOpParam hangup_prm(true);
+		try {
+			call->hangup(hangup_prm);
+		} catch (pj::Error &e) {
+			LOG(logERROR) << __FUNCTION__ << ": hangup error: " << e.reason;
+		}
+		return;
+	}
+
+	LOG(logINFO) << __FUNCTION__ << ": call not in list, skip hangup";
 }
 
 int main(int argc, char **argv){
@@ -2047,6 +2107,9 @@ int main(int argc, char **argv){
 		}
 		EpConfig ep_cfg;
 		ep_cfg.uaConfig.maxCalls = 1000;
+		// Use more than one SIP worker so incoming NOTIFY on REFER processing is not
+		// fully blocked if one worker is temporarily busy on dialog/callback work.
+		ep_cfg.uaConfig.threadCnt = 2;
 		ep_cfg.logConfig.level = log_level_file;
 		ep_cfg.logConfig.consoleLevel = log_level_console;
 		std::string pj_log_fn =  log_fn_pjsua;

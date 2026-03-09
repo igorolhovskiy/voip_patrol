@@ -10,6 +10,7 @@ This is a fork of the [original project](https://github.com/jchavanton/voip_patr
 * Extended `expected_XXX` parameters for accept/call tests
 * Reworked match mechanism on `accept` test to rely on Contact URI parameters (see `account` - `match_account` notes below)
 * Added `fail_on_accept` parameter to control calls, that should not happen
+* Blind transfer via REFER
 * Code formatting :)
 
 In general, I'm trying to follow the original project features and changes, but don't expect, that your existing advanced scenarios from the original project will work with this fork, but the simple ones will work without any modifications.
@@ -509,6 +510,42 @@ DISCONNECTED
   </actions>
 </config>
 ```
+
+### Example: blind transfer (bxfer)
+```xml
+<config>
+  <actions>
+    <action type="call" label="call-to-transfer"
+            transport="udp"
+            wait_until="CONFIRMED"
+            expected_cause_code="200"
+            caller="15147371787@pbx.example.com"
+            callee="12011111111@pbx.example.com"
+            auth_username="15147371787"
+            password="secret"
+            realm="pbx.example.com"
+            hangup="20"
+    />
+    <action type="wait" ms="5000"/>
+    <!-- note: wait until the call is established before sending the REFER -->
+    <action type="bxfer" label="blind-transfer"
+            caller="15147371787@pbx.example.com"
+            to_uri="19995550100@pbx.example.com"
+            expected_cause_code="200"
+    />
+    <action type="wait" complete="true" ms="25000"/>
+  </actions>
+</config>
+```
+
+### bxfer command parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| caller | string | `user@host` of the account who is doing the transfer. Mandatory |
+| to_uri | string | Transfer destination URI `user@host`. Mandatory |
+| label | string | Test description or label |
+| expected_cause_code | int | Expected SIP response code from the REFER transaction (end of NOTIFY sequence), default `200` |
 
 ### wait command parameters
 

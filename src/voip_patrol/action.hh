@@ -68,6 +68,7 @@ class Action {
 			void do_turn(const vector<ActionParam> &params);
 			void do_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
 			void do_accept_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
+			void do_bxfer(const vector<ActionParam> &params);
 			void set_config(Config *);
 			Config* get_config();
 	private:
@@ -82,6 +83,7 @@ class Action {
 			vector<ActionParam> do_turn_params;
 			vector<ActionParam> do_message_params;
 			vector<ActionParam> do_accept_message_params;
+			vector<ActionParam> do_bxfer_params;
 			Config* config;
 };
 

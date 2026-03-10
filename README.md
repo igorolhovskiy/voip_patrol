@@ -11,6 +11,7 @@ This is a fork of the [original project](https://github.com/jchavanton/voip_patr
 * Reworked match mechanism on `accept` test to rely on Contact URI parameters (see `account` - `match_account` notes below)
 * Added `fail_on_accept` parameter to control calls, that should not happen
 * Blind transfer via REFER
+* Call hold/unhold support via [rfc3264](https://datatracker.ietf.org/doc/html/rfc3264)
 * Code formatting :)
 
 In general, I'm trying to follow the original project features and changes, but don't expect, that your existing advanced scenarios from the original project will work with this fork, but the simple ones will work without any modifications.
@@ -546,6 +547,48 @@ DISCONNECTED
 | to_uri | string | Transfer destination URI `user@host`. Mandatory |
 | label | string | Test description or label |
 | expected_cause_code | int | Expected SIP response code from the REFER transaction (end of NOTIFY sequence), default `200` |
+
+### Example: hold / unhold
+```xml
+<config>
+  <actions>
+    <action type="call" label="call-to-hold"
+            transport="udp"
+            wait_until="CONFIRMED"
+            expected_cause_code="200"
+            caller="15147371787@pbx.example.com"
+            callee="12011111111@pbx.example.com"
+            auth_username="15147371787"
+            password="secret"
+            realm="pbx.example.com"
+            record_audio="rec.wav"
+    />
+    <action type="wait" ms="3000"/>
+    <!-- Put the call on hold after 3 sec and stop recording rec.wav -->
+    <action type="hold" caller="15147371787@pbx.example.com"/>
+    <action type="wait" ms="5000"/>
+    <!-- Resume the call after 5 sec and start recording in rec_1.wav -->
+    <action type="unhold" caller="15147371787@pbx.example.com"/>
+    <action type="wait" complete="true" ms="20000"/>
+  </actions>
+</config>
+```
+
+*Note: recording for calls, that are put on hold/unhold sequence happens in a separate files.
+Each segment after an unhold gets a `_<n>` suffix inserted before the file extension (e.g. `rec_1.wav`, `rec_2.wav`).
+First "part" before putting call on hold will use the name without a suffix. So, in an example above, you will have `rec.wav` + `rec_1.wav`.*
+
+### hold command parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| caller | string | `user@host` of the account whose active call should be put on hold. Or `account` from `register`, same logic as `match_account` from `accept` |
+
+### unhold command parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| caller | string | `user@host` of the account whose active call should be put on hold. Or `account` from `register`, same logic as `match_account` from `accept` |
 
 ### wait command parameters
 

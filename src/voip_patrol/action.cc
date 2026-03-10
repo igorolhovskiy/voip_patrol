@@ -257,6 +257,8 @@ vector<ActionParam> Action::get_params(string name) {
 	else if (name.compare("message") == 0) return do_message_params;
 	else if (name.compare("accept_message") == 0) return do_accept_message_params;
 	else if (name.compare("bxfer") == 0) return do_bxfer_params;
+	else if (name.compare("hold") == 0) return do_hold_params;
+	else if (name.compare("unhold") == 0) return do_unhold_params;
 	vector<ActionParam> empty_params;
 	return empty_params;
 }
@@ -457,6 +459,10 @@ void Action::init_actions_params() {
 	do_bxfer_params.push_back(ActionParam("to_uri", true, APType::apt_string));
 	do_bxfer_params.push_back(ActionParam("label", false, APType::apt_string));
 	do_bxfer_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer, "", 200));
+	// do_hold
+	do_hold_params.push_back(ActionParam("caller", true, APType::apt_string));
+	// do_unhold
+	do_unhold_params.push_back(ActionParam("caller", true, APType::apt_string));
 }
 
 void setTurnConfigAccount(AccountConfig &acc_cfg, Config *cfg, bool disable_turn) {
@@ -1630,22 +1636,7 @@ void Action::do_bxfer(const vector<ActionParam> &params) {
 		to_uri = "sip:" + to_uri;
 	}
 
-	// Find account: try full URI first, then fall back to bare username
-	TestAccount *caller_acc = config->findAccount(caller);
-	if (!caller_acc) {
-		// Strip host part (user@host → user) and scheme prefix (sip:user → user)
-		string caller_user = caller;
-		size_t at = caller_user.find('@');
-		if (at != string::npos) {
-			caller_user = caller_user.substr(0, at);
-		}
-		size_t colon = caller_user.rfind(':');
-		if (colon != string::npos) {
-			caller_user = caller_user.substr(colon + 1);
-		}
-		caller_acc = config->findAccount(caller_user);
-	}
-
+	TestAccount *caller_acc = find_caller_account(caller);
 	if (!caller_acc) {
 		LOG(logERROR) << __FUNCTION__ << ": account not found for caller: " << caller;
 
@@ -1701,6 +1692,129 @@ void Action::do_bxfer(const vector<ActionParam> &params) {
 		test->update_result();
 	}
 	config->checking_calls.unlock();
+}
+
+// Wrapper for looking account in a "caller" form
+TestAccount* Action::find_caller_account(const string &caller) {
+	TestAccount *acc = config->findAccount(caller);
+	if (acc) {
+		return acc;
+	}
+	// Strip host part (user@host → user) and scheme prefix (sip:user → user)
+	string user = caller;
+	size_t at = user.find('@');
+	if (at != string::npos) {
+		user = user.substr(0, at);
+	}
+	size_t colon = user.rfind(':');
+	if (colon != string::npos) {
+		user = user.substr(colon + 1);
+	}
+
+	return config->findAccount(user);
+}
+
+void Action::do_hold(const vector<ActionParam> &params) {
+	string caller {};
+	for (auto &param : params) {
+		if (param.name == "caller") caller = param.s_val;
+	}
+	if (caller.empty()) {
+		LOG(logERROR) << __FUNCTION__ << ": missing caller";
+
+		return;
+	}
+
+	TestAccount *caller_acc = find_caller_account(caller);
+	if (!caller_acc) {
+		LOG(logERROR) << __FUNCTION__ << ": account not found for caller: " << caller;
+
+		return;
+	}
+
+	config->checking_calls.lock();
+	TestCall *target_call = nullptr;
+	for (auto call : config->calls) {
+		if (call->acc != caller_acc || !call->test) continue;
+		try {
+			CallInfo ci = call->getInfo();
+			if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
+				target_call = call;
+				break;
+			}
+		} catch (pj::Error &e) {
+			LOG(logERROR) << __FUNCTION__ << ": iteration over calls failed: " << e.reason;
+		}
+	}
+	config->checking_calls.unlock();
+
+	if (!target_call) {
+		LOG(logERROR) << __FUNCTION__ << ": no CONFIRMED call on account: " << caller;
+
+		return;
+	}
+
+	try {
+		CallOpParam prm;
+		target_call->setHold(prm);
+
+		LOG(logINFO) << __FUNCTION__ << ": hold sent for call " << target_call->getId();
+	} catch (pj::Error &e) {
+		LOG(logERROR) << __FUNCTION__ << ": setHold failed: " << e.reason;
+	}
+}
+
+void Action::do_unhold(const vector<ActionParam> &params) {
+	string caller {};
+	for (auto &param : params) {
+		if (param.name == "caller") caller = param.s_val;
+	}
+	if (caller.empty()) {
+		LOG(logERROR) << __FUNCTION__ << ": missing caller";
+
+		return;
+	}
+
+	TestAccount *caller_acc = find_caller_account(caller);
+	if (!caller_acc) {
+		LOG(logERROR) << __FUNCTION__ << ": account not found for caller: " << caller;
+
+		return;
+	}
+
+	config->checking_calls.lock();
+
+	TestCall *target_call = nullptr;
+	for (auto call : config->calls) {
+		if (call->acc != caller_acc || !call->test) continue;
+		try {
+			CallInfo ci = call->getInfo();
+			if (ci.state == PJSIP_INV_STATE_CONFIRMED) {
+				target_call = call;
+				break;
+			}
+		} catch (pj::Error &e) {
+			LOG(logERROR) << __FUNCTION__ << ": iteration over calls failed: " << e.reason;
+		}
+	}
+	config->checking_calls.unlock();
+
+	if (!target_call) {
+		LOG(logERROR) << __FUNCTION__ << ": no CONFIRMED call on account: " << caller;
+
+		return;
+	}
+	try {
+		CallOpParam prm(true);
+		prm.opt.audioCount = 1;
+		prm.opt.videoCount = 0;
+		prm.opt.flag |= PJSUA_CALL_UNHOLD;
+		target_call->reinvite(prm);
+
+		LOG(logINFO) << __FUNCTION__ << ": unhold sent for call " << target_call->getId();
+	} catch (pj::Error &e) {
+		LOG(logERROR) << __FUNCTION__ << ": reinvite (unhold) failed: " << e.reason;
+	}
 }
 
 // Main polling loop that drives call and account test lifecycle.

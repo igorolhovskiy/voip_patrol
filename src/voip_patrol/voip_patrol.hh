@@ -429,6 +429,7 @@ class TestCall : public Call {
 
 		int role;
 		int rtt;
+		int unhold_count {0};
 		bool refer_sent {false};
 		Test *refer_test {nullptr};
 		bool is_disconnecting(){return disconnecting;};

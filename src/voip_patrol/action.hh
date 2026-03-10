@@ -28,6 +28,7 @@
 
 class Config;
 class ActionCheck;
+class TestAccount;
 
 using namespace std;
 
@@ -69,11 +70,14 @@ class Action {
 			void do_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
 			void do_accept_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
 			void do_bxfer(const vector<ActionParam> &params);
+			void do_hold(const vector<ActionParam> &params);
+			void do_unhold(const vector<ActionParam> &params);
 			void set_config(Config *);
 			Config* get_config();
 	private:
 			string get_env(string);
 			void init_actions_params();
+			TestAccount* find_caller_account(const string &caller);
 			vector<ActionParam> do_call_params;
 			vector<ActionParam> do_register_params;
 			vector<ActionParam> do_wait_params;
@@ -84,6 +88,8 @@ class Action {
 			vector<ActionParam> do_message_params;
 			vector<ActionParam> do_accept_message_params;
 			vector<ActionParam> do_bxfer_params;
+			vector<ActionParam> do_hold_params;
+			vector<ActionParam> do_unhold_params;
 			Config* config;
 };
 

@@ -703,6 +703,61 @@ void TestCall::onCallMediaState(OnCallMediaStateParam &prm) {
 			test->is_recording_running = true;
 		}
 	}
+
+	// Reconnect player and start a new recorder segment after unhold.
+	// PJSIP may reset the conf bridge connection on re-INVITE, so we
+	// re-establish it when media becomes active again.
+	// unhold_count == 0: first CONFIRMED+ACTIVE (initial connect, already handled
+	//   by onCallState) — just bump the counter.
+	// unhold_count > 0: returning from hold — reconnect player and start a new
+	//   recorder with "_<n>" suffix (n = unhold_count, starting with 1).
+	if (test && ci.state == PJSIP_INV_STATE_CONFIRMED) {
+		// Check whether at least one audio stream is fully active (PJSUA_CALL_MEDIA_ACTIVE).
+		// During hold the stream status is PJSUA_CALL_MEDIA_LOCAL_HOLD or
+		// PJSUA_CALL_MEDIA_REMOTE_HOLD, so this guard ensures we only act when
+		// media is actually flowing — i.e. on the initial answer or after an unhold
+		// re-INVITE completes.
+		bool any_active = false;
+		for (auto &m : ci.media) {
+			if (m.status == PJSUA_CALL_MEDIA_ACTIVE) {
+				any_active = true;
+				break;
+			}
+		}
+		// We found an active media
+		if (any_active) {
+			if (unhold_count > 0) {
+				// Reconnect player
+				if (player.is_valid() || test->play.length() > 0) {
+					LOG(logINFO) <<__FUNCTION__<< ": unhold #" << unhold_count << ", reconnecting player";
+					stream_to_call(this, ci.id, test->remote_user.c_str());
+				}
+				// Start a new recorder segment with "_<n>" suffix
+				if (test->recording.length() > 0) {
+					// Build new filename: insert _<unhold_count> before the last '.' extension
+					string base = test->recording;
+					string new_rec;
+					size_t dot = base.rfind('.');
+					if (dot != string::npos) {
+						new_rec = base.substr(0, dot) + "_" + to_string(unhold_count) + base.substr(dot);
+					} else {
+						new_rec = base + "_" + to_string(unhold_count);
+					}
+
+					LOG(logINFO) <<__FUNCTION__<< ": unhold #" << unhold_count << ", starting recorder segment: " << new_rec;
+
+					// Questionable, as recorder should be destroyed
+					recorder.destroy();
+					test->is_recording_running = false;
+
+					if (record_call(this, ci.id, test->remote_user.c_str(), new_rec.c_str()) == PJ_SUCCESS) {
+						test->is_recording_running = true;
+					}
+				}
+			}
+			unhold_count += 1;
+		}
+	}
 }
 
 void TestCall::onCallMediaUpdate(OnCallMediaStateParam &prm) {
@@ -718,11 +773,11 @@ void TestCall::onStreamDestroyed(OnStreamDestroyedParam &prm) {
 
 	if (ci.state == PJSIP_INV_STATE_EARLY) {
 		LOG(logINFO) << __FUNCTION__ << "State is PJSIP_INV_STATE_EARLY";
+
 		return;
 	}
 
 	LOG(logINFO) << __FUNCTION__ << ": " << get_call_state_from_id((int)(ci.state));
-
 
 	try {
 		StreamInfo const &infos = getStreamInfo(prm.streamIdx);
@@ -1754,6 +1809,10 @@ replay:
 			} else if (action_type.compare("bxfer") == 0) {
 				total_tasks_count += 1;
 				action.do_bxfer(params);
+			} else if (action_type.compare("hold") == 0) {
+				action.do_hold(params);
+			} else if (action_type.compare("unhold") == 0) {
+				action.do_unhold(params);
 			}
 		}
 	}

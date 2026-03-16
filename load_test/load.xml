@@ -25,8 +25,8 @@
         rtp_stats="true"
         hangup="25"
         max_ring_duration="120"
-	play="../voice_ref_files/reference_8000.wav"
-        repeat="99"
+     	play="../voice_ref_files/reference_8000.wav"
+        call_count="100"
 	/>
     <action type="wait" complete="true"/>
     <action type="register" transport="udp" expected_cause_code="200"

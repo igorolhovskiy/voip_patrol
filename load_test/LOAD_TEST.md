@@ -25,6 +25,6 @@ In the provided example scenario, each voip_patrol instance will do 100 calls an
     hangup="25"
     max_ring_duration="120"
     play="../voice_ref_files/reference_8000.wav"
-    repeat=99"
+    call_count=100"
 />
 ```

@@ -427,7 +427,7 @@ DISCONNECTED
 | expected_setup_duration | int/range | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | expected_codec | string | expected last seen codec to be used on this call |
 | hangup | int | call duration in second before hangup |
-| repeat | int | do this call multiple times |
+| call_count | int | do this call X times |
 
 
 ### register command parameters

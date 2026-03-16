@@ -343,7 +343,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("wait_until", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("max_duration", false, APType::apt_integer));
-	do_call_params.push_back(ActionParam("repeat", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("call_count", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("max_ring_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_string));
@@ -972,7 +972,15 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 
 	if (fail_on_accept) {
 		config->total_tasks_count -= 1;
+
 		LOG(logINFO) << __FUNCTION__ << " decreasing task counter to " << config->total_tasks_count << " due to this accept should not happen";
+	}
+
+	// Total task count should be updated as well in a case of multiple calls
+	if (call_count > 1) {
+		config->total_tasks_count += call_count - 1;
+
+		LOG(logINFO) << __FUNCTION__ << " Increasing task counter to " << config->total_tasks_count << " due to multiple calls";
 	}
 
 	if (expected_cause_code < 100 || expected_cause_code > 700) {
@@ -1047,7 +1055,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	int hangup_duration {0};
 	int early_cancel {0};
 	int re_invite_interval {0};
-	int repeat {0};
+	int call_count {1};
 	string recording {};
 	bool record_early {false};
 	bool rtp_stats {false};
@@ -1104,7 +1112,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("hangup") == 0) hangup_duration = param.i_val;
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("early_cancel") == 0) early_cancel = param.i_val;
-		else if (param.name.compare("repeat") == 0) repeat = param.i_val;
+		else if (param.name.compare("call_count") == 0) call_count = param.i_val;
 	}
 
 	if (caller.empty() || callee.empty()) {
@@ -1113,6 +1121,14 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		config->total_tasks_count += 100;
 		return;
 	}
+
+	// Total task count should be updated as well in a case of multiple calls
+	if (call_count > 1) {
+		config->total_tasks_count += call_count - 1;
+
+		LOG(logINFO) << __FUNCTION__ << " Increasing task counter to " << config->total_tasks_count << " due to multiple calls";
+	}
+
 	vp::tolower(transport);
 	string transport_param = normalize_transport_param(transport);
 
@@ -1361,9 +1377,11 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 				LOG(logERROR) << __FUNCTION__ << " error (" << e.status << "): [" << e.srcFile << "] " << e.reason << std::endl;
 			}
 		}
+
 		pj_gettimeofday(&test->sip_latency.inviteSentTs);
-		repeat -= 1;
-	} while (repeat >= 0);
+
+		call_count -= 1;
+	} while (call_count >= 1);
 }
 
 void Action::do_turn(const vector<ActionParam> &params) {

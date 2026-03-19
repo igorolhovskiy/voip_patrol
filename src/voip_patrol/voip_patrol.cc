@@ -637,7 +637,14 @@ void TestCall::onCallTsxState(OnCallTsxStateParam &prm) {
 				int msec_repl = pjsip_rxdata->pkt_info.timestamp.sec*1000 + pjsip_rxdata->pkt_info.timestamp.msec;
 				pj_time_val s = pjsip_rxdata->pkt_info.timestamp;
 
-				PJ_TIME_VAL_SUB(s, test->sip_latency.inviteSentTs);
+				// Only calculate latency if inviteSentTs was initialized (outgoing calls)
+				if (test->sip_latency.inviteSentTs.sec > 0 && test->sip_latency.inviteSentTs.sec < 2000000000) {
+					PJ_TIME_VAL_SUB(s, test->sip_latency.inviteSentTs);
+				} else {
+					// For incoming calls, set s to zero to skip latency measurements
+					s.sec = 0;
+					s.msec = 0;
+				}
 				if (ci.state == PJSIP_INV_STATE_CALLING && test->sip_latency.invite100Ms == 0) {
 					test->sip_latency.invite100Ms = s.sec*1000 + s.msec;
 				} else if (ci.state == PJSIP_INV_STATE_EARLY && test->sip_latency.invite18xMs == 0) {

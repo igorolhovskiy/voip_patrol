@@ -390,6 +390,7 @@ DISCONNECTED
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
 | min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory |
+| require_100rel | string | [RFC3262](https://www.ietf.org/rfc/rfc3262.txt) support. `force` - will reject incoming calls unless it has 100rel in Supported header, `optional` - will cause 100rel to be used if UAC indicates that it supports it. `none` by default |
 | cancel | string | `optional` - mark the test passed, if the call was canceled by the caller before answer, `force` - mark test passed ONLY if the call was canceled by the caller. Make sure that you set `ring_duration` > 0 |
 | fail_on_accept | bool | If `true` - than accepting this call counts as a failed test |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account |
@@ -419,6 +420,7 @@ DISCONNECTED
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
 | min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory. Note, if you don't specify `force`, call would be made with plain RTP |
+| require_100rel | string | [RFC3262](https://www.ietf.org/rfc/rfc3262.txt) support. `force` - will place 100rel in Require header. `none` by default |
 | late_start | bool | if `true` no SDP will be included in the INVITE and will result in a late offer in 200 OK/ACK |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account |
 | force_contact | string | local contact header will be overwritten by the given string |
@@ -445,6 +447,7 @@ DISCONNECTED
 | transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, , `tcp6`, `udp6`, `tls6`, `sips6` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add "DTLS-SRTP" support, `force` - make SRTP mandatory. Used for incoming calls to this account |
+| require_100rel | string | [RFC3262](https://www.ietf.org/rfc/rfc3262.txt) support. Depends on use of this account as UAC or UAS later. If used as UAC - see `call` command description, in a case of UAS - `accept` respectively |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account. Used for incoming calls to this account |
 | unregister | bool | unregister the account `<usename@registrar;transport=x>` |
 | reg_id | int | if present outbound and other related parameters will be added (see [RFC5626](https://datatracker.ietf.org/doc/html/rfc5626)) |

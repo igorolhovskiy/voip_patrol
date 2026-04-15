@@ -366,6 +366,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("proxy", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("contact_uri_params", false, APType::apt_string));
+	do_call_params.push_back(ActionParam("require_100rel", false, APType::apt_string));
 	// do_register
 	do_register_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("label", false, APType::apt_string));
@@ -385,6 +386,7 @@ void Action::init_actions_params() {
 	do_register_params.push_back(ActionParam("rewrite_contact", true, APType::apt_bool));
 	do_register_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	do_register_params.push_back(ActionParam("contact_uri_params", false, APType::apt_string));
+	do_register_params.push_back(ActionParam("require_100rel", false, APType::apt_string));
 	// do_accept
 	do_accept_params.push_back(ActionParam("match_account", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("transport", false, APType::apt_string));
@@ -418,6 +420,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("fail_on_accept", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
+	do_accept_params.push_back(ActionParam("require_100rel", false, APType::apt_integer));
 	// do_wait
 	do_wait_params.push_back(ActionParam("ms", false, APType::apt_integer));
 	do_wait_params.push_back(ActionParam("complete", false, APType::apt_bool));
@@ -586,6 +589,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	string instance_id {};
 	string srtp {};
 	string contact_params {};
+	string prack_support {"none"};
 	int expected_cause_code {200};
 	bool unregister {false};
 	bool rewrite_contact {false};
@@ -610,6 +614,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 		else if (param.name.compare("disable_turn") == 0) disable_turn = param.b_val;
 		else if (param.name.compare("contact_uri_params") == 0 && param.s_val.length() > 0) contact_params = param.s_val;
+		else if (param.name.compare("require_100rel") == 0 && param.s_val.length() > 0) prack_support = param.s_val;
 	}
 
 	if (username.empty() || password.empty() || registrar.empty()) {
@@ -772,6 +777,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	}
 
 	// SRTP for incoming calls
+	vp::tolower(srtp);
 	if (srtp.find("dtls") != std::string::npos) {
 		acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
 		acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_DTLS_SRTP);
@@ -788,6 +794,19 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 		acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_MANDATORY;
 
 		LOG(logINFO) << __FUNCTION__ << " Forcing encryption";
+	}
+
+	// PRACK (100rel) support
+	vp::tolower(prack_support);
+	if (prack_support == "force") {
+		LOG(logINFO) << __FUNCTION__ << " Forcing 100rel";
+
+		acc_cfg.callConfig.prackUse = PJSUA_100REL_MANDATORY;
+	}
+	if (prack_support == "optional") {
+		LOG(logINFO) << __FUNCTION__ << " 100rel is optional";
+
+		acc_cfg.callConfig.prackUse = PJSUA_100REL_OPTIONAL;
 	}
 
 	if (!acc) {
@@ -834,6 +853,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	int response_delay {0};
 	string reason {};
 	string contact_params {};
+	string prack_support {"none"};
 
 	for (auto param : params) {
 		if (param.name.compare("match_account") == 0) account_name = param.s_val;
@@ -883,6 +903,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("response_delay") == 0) response_delay = param.i_val;
 		else if (param.name.compare("contact_uri_params") == 0 && param.s_val.length() > 0) contact_params = param.s_val;
+		else if (param.name.compare("require_100rel") == 0 && param.s_val.length() > 0) prack_support = param.s_val;
 	}
 
 	if (account_name.empty()) {
@@ -945,6 +966,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		}
 
 		// SRTP
+		vp::tolower(srtp);
 		if (srtp.find("dtls") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_DTLS_SRTP);
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
@@ -961,6 +983,19 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_MANDATORY;
 
 			LOG(logINFO) << __FUNCTION__ << " Forcing encryption";
+		}
+
+		// PRACK (100rel) support
+		vp::tolower(prack_support);
+		if (prack_support == "force") {
+			LOG(logINFO) << __FUNCTION__ << " Forcing 100rel";
+
+			acc_cfg.callConfig.prackUse = PJSUA_100REL_MANDATORY;
+		}
+		if (prack_support == "optional") {
+			LOG(logINFO) << __FUNCTION__ << " 100rel is optional";
+
+			acc_cfg.callConfig.prackUse = PJSUA_100REL_OPTIONAL;
 		}
 
 		if (acc) {
@@ -1062,6 +1097,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	bool late_start {false};
 	bool disable_turn {false};
 	string force_contact {};
+	string prack_support {"none"};
 
 	for (auto param : params) {
 		if (param.name.compare("callee") == 0) callee = param.s_val;
@@ -1113,6 +1149,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("early_cancel") == 0) early_cancel = param.i_val;
 		else if (param.name.compare("call_count") == 0) call_count = param.i_val;
+		else if (param.name.compare("require_100rel") == 0 && param.s_val.length() > 0) prack_support = param.s_val;
 	}
 
 	if (caller.empty() || callee.empty()) {
@@ -1253,6 +1290,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		}
 
 		// SRTP
+		vp::tolower(srtp);
 		if (srtp.find("dtls") != std::string::npos) {
 			acc_cfg.mediaConfig.srtpOpt.keyings.push_back(PJMEDIA_SRTP_KEYING_DTLS_SRTP);
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_OPTIONAL;
@@ -1269,6 +1307,19 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 			acc_cfg.mediaConfig.srtpUse = PJMEDIA_SRTP_MANDATORY;
 
 			LOG(logINFO) << __FUNCTION__ << " Forcing encryption";
+		}
+
+		// PRACK (100rel) support
+		vp::tolower(prack_support);
+		if (prack_support == "force") {
+			LOG(logINFO) << __FUNCTION__ << " Forcing 100rel";
+
+			acc_cfg.callConfig.prackUse = PJSUA_100REL_MANDATORY;
+		}
+		if (prack_support == "optional") {
+			LOG(logINFO) << __FUNCTION__ << " 100rel is optional";
+
+			acc_cfg.callConfig.prackUse = PJSUA_100REL_OPTIONAL;
 		}
 
 		acc = config->createAccount(acc_cfg);

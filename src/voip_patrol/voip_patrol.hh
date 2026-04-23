@@ -325,6 +325,7 @@ class Test {
 		std::string transport;
 		std::string peer_socket;
 		std::string dtmf_recv;
+		std::string expected_dtmf {};
 		std::string cancel_behavoir {""};
 		call_state_t wait_state {INV_STATE_NULL};
 		test_state_t state {VPT_RUN};
@@ -393,6 +394,7 @@ class TestAccount : public Account {
 		int message_count {-1};
 		std::string play;
 		std::string play_dtmf;
+		std::string expected_dtmf {};
 		std::string timer;
 		std::string srtp;
 		std::string cancel_behavoir {""};

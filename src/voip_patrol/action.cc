@@ -362,6 +362,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("record", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("record_early", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
+	do_call_params.push_back(ActionParam("expected_dtmf", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("proxy", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
@@ -416,6 +417,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("call_count", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("reason", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("play_dtmf", false, APType::apt_string));
+	do_accept_params.push_back(ActionParam("expected_dtmf", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("timer", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("fail_on_accept", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
@@ -827,6 +829,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	string recording {};
 	bool record_early {false};
 	string play_dtmf {};
+	string expected_dtmf {};
 	string timer {};
 	string cancel_behavoir {};
 	//float min_mos {0.0};
@@ -862,6 +865,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("record") == 0) recording = param.s_val;
 		else if (param.name.compare("record_early") == 0) record_early = param.b_val;
 		else if (param.name.compare("play_dtmf") == 0 && param.s_val.length() > 0) play_dtmf = param.s_val;
+		else if (param.name.compare("expected_dtmf") == 0) expected_dtmf = param.s_val;
 		else if (param.name.compare("timer") == 0 && param.s_val.length() > 0) timer = param.s_val;
 		else if (param.name.compare("code") == 0) code = param.i_val;
 		else if (param.name.compare("expected_cause_code") == 0) expected_cause_code = param.i_val;
@@ -1038,6 +1042,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->recording = recording;
 	acc->record_early = record_early;
 	acc->play_dtmf = play_dtmf;
+	acc->expected_dtmf = expected_dtmf;
 	acc->timer = timer;
 	acc->early_media = early_media;
 	acc->wait_state = wait_until;
@@ -1064,6 +1069,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	string type {"call"};
 	string play {default_playback_file};
 	string play_dtmf {};
+	string expected_dtmf {};
 	string timer {};
 	string caller {};
 	string from {};
@@ -1109,6 +1115,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("record") == 0) recording = param.s_val;
 		else if (param.name.compare("record_early") == 0) record_early = param.b_val;
 		else if (param.name.compare("play_dtmf") == 0 && param.s_val.length() > 0) play_dtmf = param.s_val;
+		else if (param.name.compare("expected_dtmf") == 0) expected_dtmf = param.s_val;
 		else if (param.name.compare("timer") == 0 && param.s_val.length() > 0) timer = param.s_val;
 		else if (param.name.compare("username") == 0) username = param.s_val;
 		else if (param.name.compare("auth_username") == 0) auth_username = param.s_val;
@@ -1344,6 +1351,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		test->label = label;
 		test->play = play;
 		test->play_dtmf = play_dtmf;
+		test->expected_dtmf = expected_dtmf;
 		test->min_mos = min_mos;
 		test->max_duration = max_duration;
 		test->max_ring_duration = max_ring_duration;

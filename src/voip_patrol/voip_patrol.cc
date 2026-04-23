@@ -694,7 +694,10 @@ static float rfactor_to_mos(float rfactor) {
 }
 
 void TestCall::onDtmfDigit(OnDtmfDigitParam &prm) {
-	LOG(logINFO) << __FUNCTION__ << ":"<<prm.digit;
+	CallInfo ci = getInfo();
+
+	LOG(logINFO) << __FUNCTION__ << " id:" << ci.id << " received digit:" << prm.digit;
+
 	test->dtmf_recv.append(prm.digit);
 }
 
@@ -1111,6 +1114,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->expected_setup_duration = expected_setup_duration;
 		call->test->expected_setup_duration_range = expected_setup_duration_range;
 		call->test->expected_codec = expected_codec;
+		call->test->expected_dtmf = expected_dtmf;
 
 		LOG(logINFO)<<__FUNCTION__<<": local["<< ci.localUri <<"]";
 
@@ -1340,6 +1344,8 @@ void Test::update_result() {
 		res_text = "Call canceled";
 		res = "PASS";
 		success = true;
+	} else if (!expected_dtmf.empty() && expected_dtmf != dtmf_recv) {
+		res_text = "Expected DTMF " + expected_dtmf + " != " + dtmf_recv + " actual";
 	} else if (mos < min_mos) {
 		res_text = "MOS is too low";
 	} else if (expected_cause_code == result_cause_code) {
@@ -1442,8 +1448,12 @@ void Test::update_result() {
 						"\"setup_duration\": " + std::to_string(setup_duration) + ", "
 						"\"expected_setup_duration\": " + std::to_string(expected_setup_duration) + ", "
 						"\"hangup_duration\": " + std::to_string(hangup_duration);
-	if (dtmf_recv.length() > 0)
+	if (dtmf_recv.length() > 0) {
 		result_line_json += ", \"dtmf_recv\": \""+dtmf_recv+"\"";
+	}
+	if (expected_dtmf.length() > 0) {
+		result_line_json += ", \"expected_dtmf\": \""+expected_dtmf+"\"";
+	}
 
 
 	result_line_json += ", \"call_info\":{"

@@ -431,7 +431,7 @@ DISCONNECTED
 | expected_setup_duration | int/range | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | expected_codec | string | expected last seen codec to be used on this call |
 | hangup | int | call duration in second before hangup |
-| call_count | int | do this call X times |
+| call_count | int | do this call N times |
 
 
 ### register command parameters
@@ -446,7 +446,7 @@ DISCONNECTED
 | aor | string | Account Address Of Record. if not specified - `<usename@registrar>` |
 | contact_uri_params | string | string, that will be added to Contact URI as params |
 | registrar | string | SIP UAS handling registration where the messages will be sent |
-| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, , `tcp6`, `udp6`, `tls6`, `sips6` |
+| transport | string | force a specific transport `tcp`, `udp`, `tls`, `sips`, `tcp6`, `udp6`, `tls6`, `sips6` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add "DTLS-SRTP" support, `force` - make SRTP mandatory. Used for incoming calls to this account |
 | require_100rel | string | [RFC3262](https://www.ietf.org/rfc/rfc3262.txt) support. Depends on use of this account as UAC or UAS later. If used as UAC - see `call` command description, in a case of UAS - `accept` respectively |
@@ -461,15 +461,15 @@ DISCONNECTED
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| from | string | From header complete "\&quot;Display Name\&quot; <sip:test at 127.0.0.1>"  |
-| to_uri | string | used@host part of the URI in the To header |
-| transport | string | force a specific transport <tcp,udp,tls,tcp6,udp6,tls6> |
+| from | string | complete From header `\&quot;Display Name\&quot; <sip:test at 127.0.0.1>`  |
+| to_uri | string | `user@host` part of the URI in the To header |
+| transport | string | force a specific transport `tcp,udp,tls,tcp6,udp6,tls6` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | username | string | authentication username, account name, From/To/Contact header user part |
 | password | string | authentication password |
 | label | string | test description or label |
 
-### Example: sending a message
+#### Example: sending a message
 ```xml
 <?xml version="1.0"?>
 <config>
@@ -491,12 +491,12 @@ DISCONNECTED
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| account | string | Account will be used if it matches the user part of an incoming message RURI or "default" will catch all |
-| message_count | int | The amount of messages to receive to consider the command completed, default -1 (considered completed) |
+| account | string | Account will be used if it matches the user part of an incoming message RURI or `default` will catch all |
+| message_count | int | The amount of messages to receive to consider the command completed, default `-1` (considered completed) |
 | transport | string | Force a specific transport for all messages on accepted messages, default to all transport available |
 | label | string | test description or label |
 
-### Example: receiving a message
+#### Example: receiving a message
 ```xml
 <?xml version="1.0"?>
 <config>
@@ -517,7 +517,16 @@ DISCONNECTED
 </config>
 ```
 
-### Example: blind transfer (bxfer)
+### bxfer command parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| caller | string | `user@host` of the account who is doing the transfer. Mandatory |
+| to_uri | string | Transfer destination URI `user@host`. Mandatory |
+| label | string | Test description or label |
+| expected_cause_code | int | Expected SIP response code from the REFER transaction (end of NOTIFY sequence), default `200` |
+
+#### Example: blind transfer (bxfer)
 ```xml
 <config>
   <actions>
@@ -544,16 +553,23 @@ DISCONNECTED
 </config>
 ```
 
-### bxfer command parameters
+### hold command parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| caller | string | `user@host` of the account who is doing the transfer. Mandatory |
-| to_uri | string | Transfer destination URI `user@host`. Mandatory |
-| label | string | Test description or label |
-| expected_cause_code | int | Expected SIP response code from the REFER transaction (end of NOTIFY sequence), default `200` |
+| caller | string | `user@host` of the account whose active call should be put on hold. Or `account` from `register`, same logic as `match_account` from `accept` |
 
-### Example: hold / unhold
+### unhold command parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| caller | string | `user@host` of the account whose active call should be put on hold. Or `account` from `register`, same logic as `match_account` from `accept` |
+
+*Note: recording for calls, that are put on hold/unhold sequence happens in a separate files.
+Each segment after an unhold gets a `_<n>` suffix appended to file name, where `n` is a unhold sequence number (e.g. `rec_1.wav`, `rec_2.wav`).
+First "part" before putting call on hold will use the name without a suffix. So, in an example below, you will have `rec.wav` + `rec_1.wav`.*
+
+#### Example: hold / unhold
 ```xml
 <config>
   <actions>
@@ -566,7 +582,7 @@ DISCONNECTED
             auth_username="15147371787"
             password="secret"
             realm="pbx.example.com"
-            record_audio="rec.wav"
+            record="rec.wav"
     />
     <action type="wait" ms="3000"/>
     <!-- Put the call on hold after 3 sec and stop recording rec.wav -->
@@ -578,22 +594,6 @@ DISCONNECTED
   </actions>
 </config>
 ```
-
-*Note: recording for calls, that are put on hold/unhold sequence happens in a separate files.
-Each segment after an unhold gets a `_<n>` suffix inserted before the file extension (e.g. `rec_1.wav`, `rec_2.wav`).
-First "part" before putting call on hold will use the name without a suffix. So, in an example above, you will have `rec.wav` + `rec_1.wav`.*
-
-### hold command parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| caller | string | `user@host` of the account whose active call should be put on hold. Or `account` from `register`, same logic as `match_account` from `accept` |
-
-### unhold command parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| caller | string | `user@host` of the account whose active call should be put on hold. Or `account` from `register`, same logic as `match_account` from `accept` |
 
 ### wait command parameters
 
@@ -619,8 +619,8 @@ First "part" before putting call on hold will use the name without a suffix. So,
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | priority | int | 0-255, where zero means to disable the codec |
-| enable | string | Codec payload type ID, ex. "g722", "pcma", "opus" or "all" |
-| disable | string | Codec payload type ID, ex. "g722", "pcma", "opus" or "all" |
+| enable | string | Codec payload type ID, ex. `g722`, `pcma`, `opus` or `all` |
+| disable | string | Codec payload type ID, ex. `g722`, `pcma`, `opus` or `all` |
 
 ### Example: TURN configuration
 ```xml
@@ -637,16 +637,16 @@ First "part" before putting call on hold will use the name without a suffix. So,
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| enabled | bool | if "true" STUN/TURN/ICE server usage will be enabled |
+| enabled | bool | if `true` STUN/TURN/ICE server usage will be enabled |
 | server | string | STUN/TURN server URI or IP:port |
 | username | string | TURN server username |
 | password | string | TURN server password |
-| password_hashed | bool | if "true" use hashed password, default plain password |
-| sip_stun_use | bool | if "true" SIP reflective IP is use with signaling |
-| media_stun_use | bool | if "true" STUN reflective IP is use with media/SDP |
-| stun_only | bool | if "true" TURN and ICE are disabled and only STUN is use |
-| disable_ice | bool | if "true" ICE mechanism is disabled |
-| ice_trickle | bool | if "true" Trickle ICE mechanism is used |
+| password_hashed | bool | if `true` use hashed password, default plain password |
+| sip_stun_use | bool | if `true` SIP reflective IP is use with signaling |
+| media_stun_use | bool | if `true` STUN reflective IP is use with media/SDP |
+| stun_only | bool | if `true` TURN and ICE are disabled and only STUN is use |
+| disable_ice | bool | if `true` ICE mechanism is disabled |
+| ice_trickle | bool | if `true` Trickle ICE mechanism is used |
 
 ### using env variable in scenario actions parameters
 Any value starting with `VP_ENV` will be replaced by the envrironment variable of the same name.

@@ -64,7 +64,6 @@ class Action {
 			void do_accept(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
 			void do_wait(const vector<ActionParam> &params);
 			void do_register(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
-			void do_alert(const vector<ActionParam> &params);
 			void do_codec(const vector<ActionParam> &params);
 			void do_turn(const vector<ActionParam> &params);
 			void do_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
@@ -82,7 +81,6 @@ class Action {
 			vector<ActionParam> do_register_params;
 			vector<ActionParam> do_wait_params;
 			vector<ActionParam> do_accept_params;
-			vector<ActionParam> do_alert_params;
 			vector<ActionParam> do_codec_params;
 			vector<ActionParam> do_turn_params;
 			vector<ActionParam> do_message_params;

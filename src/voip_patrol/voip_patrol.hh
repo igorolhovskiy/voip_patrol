@@ -27,7 +27,6 @@
 #include <mutex>
 #include <pj/file_access.h>
 #include "ezxml/ezxml.h"
-#include "curl/email.h"
 #include <sstream>
 #include <ctime>
 #include "log.h"
@@ -130,26 +129,6 @@ public:
 	PjsuaRecorder& operator=(PjsuaRecorder&& other) noexcept;
 };
 
-typedef struct upload_data {
-	int lines_read;
-	std::vector<std::string> payload_content;
-} upload_data_t;
-
-class Alert {
-	public:
-		Alert(Config* config);
-		void prepare(void);
-		std::string alert_email_to;
-		std::string alert_email_from;
-		std::string alert_server_url;
-		void send(void);
-		static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp);
-		upload_data_t upload_data;
-		Config * config;
-	private:
-		CURL *curl;
-};
-
 struct sipLatency {
 	int invite100Ms;
 	int invite18xMs;
@@ -216,9 +195,6 @@ class Config {
 		bool removeCall(TestCall *call);
 		bool graceful_shutdown;
 		bool rewrite_ack_transport;
-		std::string alert_email_to;
-		std::string alert_email_from;
-		std::string alert_server_url;
 		TransportId transport_id_udp{-1};
 		TransportId transport_id_tcp{-1};
 		TransportId transport_id_tls{-1};
@@ -266,6 +242,12 @@ typedef enum call_wait_state {
 call_state_t get_call_state_from_string (string state);
 string get_call_state_string (call_state_t state);
 
+// Insert "_<index>" into a recording filename, before the file extension
+// (e.g. "rec.wav" + 2 -> "rec_2.wav"; "rec" + 2 -> "rec_2"). Used to make
+// per-call recording filenames unique when call_count > 1 and as the base for
+// the hold/unhold "_<n>" segment suffix, so the two mechanisms never collide.
+string make_indexed_recording (const string &base, int index);
+
 const char default_playback_file[] = "/voice_ref_files/8000.wav";
 
 typedef enum test_run_state {
@@ -288,7 +270,8 @@ class Test {
 		std::string start_time;
 		std::string end_time;
 		float min_mos{0.0};
-		float mos{0.0};
+		float mos{0.0};        // Listening Quality (LQ), worst direction, lowest across streams
+		float mos_cq{0.0};     // Conversational Quality (LQ minus delay impairment)
 		bool rtp_stats {false};
 		bool late_start {false};
 		std::string force_contact {""};
@@ -311,7 +294,6 @@ class Test {
 		bool early_media {false};
 		int rtp_stats_count {0};
 		int max_ring_duration {0};
-		void get_mos();
 		std::string local_user;
 		std::string local_uri;
 		std::string local_contact;
@@ -381,6 +363,7 @@ class TestAccount : public Account {
 		DurationRange expected_setup_duration_range;
 		std::string expected_codec {};
 		bool rtp_stats {false};
+		float min_mos {0.0};
 		bool late_start {false};
 		bool unregistering {false};
 		std::string force_contact;
@@ -389,6 +372,12 @@ class TestAccount : public Account {
 		bool disable_turn {false};
 		std::string recording {""};
 		bool record_early {false};
+		// When set, each accepted call's recording filename gets a unique
+		// "_<accept_record_index>" suffix so concurrent/sequential calls on this
+		// account never overwrite each other. Decided once in do_accept from the
+		// configured call_count; the running index counts accepted calls (1-based).
+		bool index_recording {false};
+		int accept_record_index {0};
 		SipHeaderVector x_headers;
 		int call_count {-1};
 		int message_count {-1};

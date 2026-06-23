@@ -251,7 +251,6 @@ vector<ActionParam> Action::get_params(string name) {
 	else if (name.compare("register") == 0) return do_register_params;
 	else if (name.compare("wait") == 0) return do_wait_params;
 	else if (name.compare("accept") == 0) return do_accept_params;
-	else if (name.compare("alert") == 0) return do_alert_params;
 	else if (name.compare("codec") == 0) return do_codec_params;
 	else if (name.compare("turn") == 0) return do_turn_params;
 	else if (name.compare("message") == 0) return do_message_params;
@@ -344,6 +343,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("wait_until", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("max_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("call_count", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("call_interval_ms", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("max_ring_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("expected_duration", false, APType::apt_string));
@@ -356,7 +356,7 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("srtp", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("force_contact", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("hangup", false, APType::apt_integer));
-	do_call_params.push_back(ActionParam("cancel", false, APType::apt_integer));
+	do_call_params.push_back(ActionParam("early_cancel", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("re_invite_interval", false, APType::apt_integer));
 	do_call_params.push_back(ActionParam("play", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("record", false, APType::apt_string));
@@ -405,7 +405,7 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("wait_until", false, APType::apt_string));
 	do_accept_params.push_back(ActionParam("hangup", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("re_invite_interval", false, APType::apt_integer));
-	//do_accept_params.push_back(ActionParam("min_mos", false, APType::apt_float));
+	do_accept_params.push_back(ActionParam("min_mos", false, APType::apt_float));
 	do_accept_params.push_back(ActionParam("rtp_stats", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("late_start", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("srtp", false, APType::apt_string));
@@ -422,14 +422,10 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("fail_on_accept", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
-	do_accept_params.push_back(ActionParam("require_100rel", false, APType::apt_integer));
+	do_accept_params.push_back(ActionParam("require_100rel", false, APType::apt_string));
 	// do_wait
 	do_wait_params.push_back(ActionParam("ms", false, APType::apt_integer));
 	do_wait_params.push_back(ActionParam("complete", false, APType::apt_bool));
-	// do_alert
-	do_alert_params.push_back(ActionParam("email", false, APType::apt_string));
-	do_alert_params.push_back(ActionParam("email_from", false, APType::apt_string));
-	do_alert_params.push_back(ActionParam("smtp_host", false, APType::apt_string));
 	// do_codec
 	do_codec_params.push_back(ActionParam("priority", false, APType::apt_integer));
 	do_codec_params.push_back(ActionParam("enable", false, APType::apt_string));
@@ -451,6 +447,7 @@ void Action::init_actions_params() {
 	do_message_params.push_back(ActionParam("text", true, APType::apt_string));
 	do_message_params.push_back(ActionParam("username", true, APType::apt_string));
 	do_message_params.push_back(ActionParam("password", true, APType::apt_string));
+	do_message_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_message_params.push_back(ActionParam("realm", false, APType::apt_string));
 	do_message_params.push_back(ActionParam("label", true, APType::apt_string));
 	do_message_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
@@ -558,7 +555,7 @@ void setTurnConfigAccount(AccountConfig &acc_cfg, Config *cfg, bool disable_turn
 	}
 
 	if (turn_config->ice_trickle) {
-		LOG(logINFO) << __FUNCTION__ << " enabling Tricke ICE for this account";
+		LOG(logINFO) << __FUNCTION__ << " enabling Trickle ICE for this account";
 
 		acc_cfg.natConfig.iceTrickle = PJ_ICE_SESS_TRICKLE_FULL;
 		acc_cfg.natConfig.iceAggressiveNomination = false;
@@ -701,7 +698,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	if (reg_id != "" || instance_id != "") {
 		LOG(logINFO) << __FUNCTION__ << " reg_id:" << reg_id << " instance_id:" << instance_id;
 		if (transport_param == "udp") {
-			LOG(logINFO) << __FUNCTION__ << " oubound rfc5626 not supported on transport UDP" << std::endl;
+			LOG(logINFO) << __FUNCTION__ << " outbound rfc5626 not supported on transport UDP" << std::endl;
 		} else {
 			acc_cfg.natConfig.sipOutboundUse = true;
 			if (reg_id != "")
@@ -832,7 +829,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	string expected_dtmf {};
 	string timer {};
 	string cancel_behavoir {};
-	//float min_mos {0.0};
+	float min_mos {0.0};
 	int max_duration {0};
 	int ring_duration {0};
 	int early_media {false};
@@ -896,7 +893,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		else if (param.name.compare("early_media") == 0) early_media = param.b_val;
 		else if (param.name.compare("fail_on_accept") == 0) fail_on_accept = param.b_val;
 		else if (param.name.compare("disable_turn") == 0) disable_turn = param.b_val;
-		//else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
+		else if (param.name.compare("min_mos") == 0) min_mos = param.f_val;
 		else if (param.name.compare("rtp_stats") == 0) rtp_stats = param.b_val;
 		else if (param.name.compare("srtp") == 0 && param.s_val.length() > 0) srtp = param.s_val;
 		else if (param.name.compare("force_contact") == 0) force_contact = param.s_val;
@@ -1037,10 +1034,17 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->ring_duration = ring_duration;
 	acc->accept_label = label;
 	acc->rtp_stats = rtp_stats;
+	acc->min_mos = min_mos;
 	acc->late_start = late_start;
 	acc->play = play;
 	acc->recording = recording;
 	acc->record_early = record_early;
+	// Index per-call recording filenames when more than one call may be accepted
+	// (call_count > 1, or -1 meaning unlimited). "auto" already yields a unique
+	// per-call-id filename, so it needs no extra suffix. Reset the running index
+	// so it restarts at 1 for this accept action.
+	acc->index_recording = (call_count > 1 || call_count == -1) && recording.length() > 0 && recording != "auto";
+	acc->accept_record_index = 0;
 	acc->play_dtmf = play_dtmf;
 	acc->expected_dtmf = expected_dtmf;
 	acc->timer = timer;
@@ -1097,6 +1101,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	int early_cancel {0};
 	int re_invite_interval {0};
 	int call_count {1};
+	int call_interval_ms {0};
 	string recording {};
 	bool record_early {false};
 	bool rtp_stats {false};
@@ -1156,6 +1161,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		else if (param.name.compare("re_invite_interval") == 0) re_invite_interval = param.i_val;
 		else if (param.name.compare("early_cancel") == 0) early_cancel = param.i_val;
 		else if (param.name.compare("call_count") == 0) call_count = param.i_val;
+		else if (param.name.compare("call_interval_ms") == 0) call_interval_ms = param.i_val;
 		else if (param.name.compare("require_100rel") == 0 && param.s_val.length() > 0) prack_support = param.s_val;
 	}
 
@@ -1334,7 +1340,15 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		LOG(logINFO) << __FUNCTION__ << ": session timer["<<timer<<"] :"<< acc_cfg.callConfig.timerUse << " TURN: "<< acc_cfg.natConfig.turnEnabled;
 	}
 
+	// When call_count > 1, each call gets a unique recording filename
+	// ("<record>_<index>") so the calls do not overwrite each other. The index
+	// is 1-based and becomes the base for any hold/unhold segment suffix.
+	const bool index_recording = call_count > 1 && recording.length() > 0 && recording != "auto";
+	int record_index = 0;
+
 	do {
+		record_index += 1;
+
 		Test *test = new Test(config, type);
 		memset(&test->sip_latency, 0, sizeof(sipLatency));
 		test->wait_state = wait_until;
@@ -1358,7 +1372,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		test->hangup_duration = hangup_duration;
 		test->re_invite_interval = re_invite_interval;
 		test->re_invite_next = re_invite_interval;
-		test->recording = recording;
+		test->recording = index_recording ? make_indexed_recording(recording, record_index) : recording;
 		test->record_early = record_early;
 		test->rtp_stats = rtp_stats;
 		test->late_start = late_start;
@@ -1440,6 +1454,16 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		pj_gettimeofday(&test->sip_latency.inviteSentTs);
 
 		call_count -= 1;
+		// Inter-call spacing to avoid flooding the remote peer when call_count > 1.
+		// Unlike a blocking pj_thread_sleep(), do_wait() keeps servicing the
+		// already-placed calls (DTMF, hangup timers, completion) on this thread
+		// while the PJSUA worker threads handle SIP/media, so nothing stalls.
+		// Skipped after the final iteration to avoid a tail delay.
+		if (call_count >= 1 && call_interval_ms > 0) {
+			vector<ActionParam> wait_params = get_params("wait");
+			set_param_by_name(&wait_params, "ms", std::to_string(call_interval_ms).c_str());
+			do_wait(wait_params);
+		}
 	} while (call_count >= 1);
 }
 
@@ -1662,21 +1686,6 @@ void Action::do_codec(const vector<ActionParam> &params) {
 		config->ep->setCodecs(disable, 0);
 	if (!enable.empty())
 		config->ep->setCodecs(enable, priority);
-}
-
-void Action::do_alert(const vector<ActionParam> &params) {
-	string email {};
-	string email_from {};
-	string smtp_host {};
-	for (auto param : params) {
-		if (param.name.compare("email") == 0) email = param.s_val;
-		else if (param.name.compare("email_from") == 0) email_from = param.s_val;
-		else if (param.name.compare("smtp_host") == 0) smtp_host = param.s_val;
-	}
-	LOG(logINFO) << __FUNCTION__ << "email to:"<<email<< " from:"<<email_from;
-	config->alert_email_to = email;
-	config->alert_email_from = email_from;
-	config->alert_server_url = smtp_host;
 }
 
 void Action::do_bxfer(const vector<ActionParam> &params) {

@@ -28,7 +28,7 @@ pj_status_t vp_on_tx_msg(pjsip_tx_data *tdata) {
 	 */
 
 
-	// Curently the logic is simply to strip the transport to reproduce some broken carrier, this should evolve to be controled using PCRE
+	// Currently the logic is simply to strip the transport to reproduce some broken carrier, this should evolve to be controlled using PCRE
 	pjsip_sip_uri *sip_uri = (pjsip_sip_uri*)tdata->msg->line.req.uri;
 	LOG(logINFO) <<__FUNCTION__<<":"<< sip_uri->host.ptr <<" " << sip_uri->transport_param.ptr << "\n" ;
 

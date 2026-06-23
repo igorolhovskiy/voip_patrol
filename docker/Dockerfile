@@ -1,7 +1,7 @@
 FROM python:3.7-buster
 
 RUN echo "installing dependencies" \
-	&& apt-get update && apt-get install -y build-essential libcurl4-openssl-dev cmake pkg-config libasound2-dev \
+	&& apt-get update && apt-get install -y build-essential cmake pkg-config libasound2-dev \
 	&& apt-get -y install libssl-dev git libopus-dev libsrtp2-dev
 
 RUN echo "building VoIP Patrol" \

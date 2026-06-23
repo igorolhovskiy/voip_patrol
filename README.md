@@ -350,26 +350,16 @@ DISCONNECTED
     }
 }
 ```
-### Example: email reporting
-```xml
-<config>
-  <actions>
-    <action type="alert"
-     email="jchavanton+vp@gmail.com"
-     email_from="test@voip-patrol.org"
-     smtp_host="smtp://gmail-smtp-in.l.google.com:25"
-    />
-    <!-- add more test actions here ...  -->
-    <action type="wait" complete="true"/>
-  </actions>
-</config>
-```
-
 ### accept command parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
+| label | string | test description or label |
 | ring_duration | int | ringing duration in seconds |
+| max_duration | int | maximum call duration in seconds; the call is considered failed if it lasts longer |
+| wait_until | string | hold scenario execution at this call state before continuing (e.g. `INVITE`, `EARLY`, `CONNECTING`, `CONFIRMED`, `DISCONNECTED`) |
+| late_start | bool | if `true` answer with no SDP in the 200 OK, expecting a late offer in the ACK |
+| reason | string | SIP reason phrase returned alongside `code` (e.g. `Busy Here` with `code="486"`) |
 | expected_duration | int/range | expected duration of the call in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | expected_setup_duration | int/range | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | early_media | bool | if `true` 183 with SDP and early media is used |
@@ -408,6 +398,8 @@ DISCONNECTED
 | from | string | From header complete `"Display Name" <sip:test at 127.0.0.1>` in a format `&quot;Display Name&quot; &lt;sip:test at 127.0.0.1&gt;`  |
 | callee | string | request URI `user@host` (also used in the To header unless to_uri is specified) |
 | to_uri | string | used@host part of the URI in the To header |
+| label | string | test description or label |
+| username | string | authentication username on INVITE. If not specified, `auth_username` is used |
 | auth_username | string | authentication username on INVITE |
 | password | string | password used on INVITE |
 | realm | string | realm use for authentication on INVITE. If empty - any auth realm is allowed |
@@ -422,16 +414,24 @@ DISCONNECTED
 | rtp_stats | bool | if `true` the json report will include a report on RTP transmission |
 | min_mos | float | Minimal [MOS](https://en.wikipedia.org/wiki/Mean_opinion_score) value for this call |
 | srtp | string | Comma-separated values of the following `sdes` - add SDES support, `dtls` - add DTLS-SRTP support, `force` - make SRTP mandatory. Note, if you don't specify `force`, call would be made with plain RTP |
-| require_100rel | string | [RFC3262](https://www.ietf.org/rfc/rfc3262.txt) support. `force` - will place 100rel in Require header. `none` by default |
+| require_100rel | string | [RFC3262](https://www.ietf.org/rfc/rfc3262.txt) support. `force` - will place 100rel in Require header. `optional` - will cause 100rel to be used if the UAS indicates that it supports it. `none` by default |
 | late_start | bool | if `true` no SDP will be included in the INVITE and will result in a late offer in 200 OK/ACK |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account |
 | force_contact | string | local contact header will be overwritten by the given string |
 | max_ring_duration | int | max ringing duration in seconds before cancel |
+| early_cancel | int | if `1`, the caller hangs up the call as soon as it reaches early/ringing (18x) state, and also immediately if it reaches connected (200 OK) state. Useful to test CANCEL handling and race conditions |
 | expected_duration | int/range | expected duration of the call in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | expected_setup_duration | int/range | expected duration of the call setup (INVITE - 200 OK) in seconds. Test considered failed if actual duration is different or not within `min-max` range |
 | expected_codec | string | expected last seen codec to be used on this call |
 | hangup | int | call duration in second before hangup |
-| call_count | int | do this call N times |
+| max_duration | int | maximum call duration in seconds; the call is considered failed if it lasts longer |
+| expected_cause_code | int | SIP cause code expected as the call result (e.g. `200`, `486`, `603`) |
+| wait_until | string | hold scenario execution at this call state before continuing (e.g. `INVITE`, `EARLY`, `CONNECTING`, `CONFIRMED`, `DISCONNECTED`) |
+| call_count | int | do this call `N` times |
+| call_interval_ms | int | delay in milliseconds between consecutive calls when `call_count` > 1. Default `0` (no delay) |
+
+*Note: when `call_count` > 1 and `record` is set to an explicit filename (not `auto`), each call records to a separate file.
+A `_<n>` suffix is appended before the extension, where `n` is the 1-based call index (e.g. `rec_1.wav`, `rec_2.wav`).*
 
 
 ### register command parameters
@@ -439,6 +439,8 @@ DISCONNECTED
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | proxy | string | ip/hostname of a proxy where to send the register |
+| label | string | test description or label |
+| expected_cause_code | int | SIP cause code expected as the registration result (e.g. `200`) |
 | username | string | AOR username - From/To/Contact header user part |
 | auth_username | string | authentication username, account name, From/To/Contact header user part. If not specified, `username` is used |
 | password | string | account password |
@@ -463,11 +465,13 @@ DISCONNECTED
 | ---- | ---- | ----------- |
 | from | string | complete From header `\&quot;Display Name\&quot; <sip:test at 127.0.0.1>`  |
 | to_uri | string | `user@host` part of the URI in the To header |
+| text | string | the MESSAGE body to send. Mandatory |
 | transport | string | force a specific transport `tcp,udp,tls,tcp6,udp6,tls6` |
 | realm | string | realm use for authentication. If empty - any auth realm is allowed |
 | username | string | authentication username, account name, From/To/Contact header user part |
 | password | string | authentication password |
 | label | string | test description or label |
+| expected_cause_code | int | SIP cause code expected as the MESSAGE result (e.g. `202` Accepted) |
 
 #### Example: sending a message
 ```xml

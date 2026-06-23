@@ -203,6 +203,7 @@ class Config {
 		TransportId transport_id_tls6{-1};
 		int total_tasks_count;
 		int json_result_count;
+		int failed_tests_count;
 		Action action;
 		ResultFile result_file;
 		std::mutex checking_calls;

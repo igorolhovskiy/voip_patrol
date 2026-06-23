@@ -30,6 +30,8 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 ### Docker quick start
 [quick start with docker](QUICK_START.md)
 
+### AI assistant instructions
+[scenario writing, Docker usage, CI/CD integration guides for Claude Code / Codex](ai/SKILLS.md)
 
 ### Linux Debian building from sources
 [see commands in Dockerfile](docker/Dockerfile)
@@ -667,6 +669,109 @@ voip_patrol/docker$ tree
 ├── build.sh        # docker build command example
 ├── Dockerfile      # docker build file for Linux Alpine
 └── voip_patrol.sh  # docker run example starting
+```
+
+## CI/CD Integration
+
+VoIP Patrol is designed to be used as a step in CI/CD pipelines. The Docker image exposes a well-defined set of exit codes that allow pipelines to fail automatically when tests do not pass.
+
+### Exit codes
+
+| Code | Meaning |
+| ---- | ------- |
+| `0` | All tasks completed and all tests passed |
+| `1` | Fatal error — transport initialization failed or unhandled PJSIP exception |
+| `2` | All tasks ran, but at least one test returned `FAIL` |
+| `3` | Task count mismatch — tasks registered ≠ tasks completed (e.g. an `accept` that received no call, or an `accept` with `fail_on_accept="true"` that did receive a call) |
+
+Exit codes `2` and `3` are both test failures but carry different signals: **2** means something happened but the result was wrong; **3** means something expected to happen did not happen at all, or something that should not have happened did.
+
+### Docker run pattern
+
+The provided `entry.sh` wrapper calls the binary and is controlled by environment variables:
+
+```bash
+docker run --rm \
+  --net=host \
+  -v $(pwd)/xml:/xml \
+  -v $(pwd)/output:/output \
+  -e XML_CONF=my_scenario \
+  -e RESULT_FILE=result.json \
+  -e PORT=5060 \
+  -e LOG_LEVEL=2 \
+  -e LOG_LEVEL_FILE=10 \
+  voip_patrol_local
+```
+
+The exit code of `docker run` reflects the voip_patrol exit code directly, so no additional inspection of the JSON output is needed to fail a pipeline.
+
+### GitHub Actions
+
+```yaml
+- name: Run VoIP tests
+  run: |
+    docker run --rm \
+      --net=host \
+      -v ${{ github.workspace }}/xml:/xml \
+      -v ${{ github.workspace }}/output:/output \
+      -e XML_CONF=my_scenario \
+      -e RESULT_FILE=result.json \
+      -e PORT=5060 \
+      -e LOG_LEVEL=2 \
+      -e LOG_LEVEL_FILE=10 \
+      voip_patrol_local
+
+- name: Upload test results
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: voip-patrol-results
+    path: output/result.json
+```
+
+### GitLab CI
+
+```yaml
+voip_test:
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - |
+      docker run --rm \
+        --net=host \
+        -v $CI_PROJECT_DIR/xml:/xml \
+        -v $CI_PROJECT_DIR/output:/output \
+        -e XML_CONF=my_scenario \
+        -e RESULT_FILE=result.json \
+        -e PORT=5060 \
+        -e LOG_LEVEL=2 \
+        -e LOG_LEVEL_FILE=10 \
+        voip_patrol_local
+  artifacts:
+    when: always
+    paths:
+      - output/result.json
+```
+
+### Shell / Makefile
+
+```bash
+docker run --rm \
+  --net=host \
+  -v $(pwd)/xml:/xml \
+  -v $(pwd)/output:/output \
+  -e XML_CONF=my_scenario \
+  -e RESULT_FILE=result.json \
+  voip_patrol_local
+EXIT=$?
+
+case $EXIT in
+  0) echo "All tests passed" ;;
+  2) echo "Tests failed — check output/result.json for details" ; exit 2 ;;
+  3) echo "Task mismatch — an expected test did not run or an unexpected call arrived" ; exit 3 ;;
+  *) echo "Fatal error (exit $EXIT)" ; exit $EXIT ;;
+esac
 ```
 
 ## Dependencies

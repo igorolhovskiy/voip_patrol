@@ -1503,6 +1503,9 @@ void Test::update_result() {
 		x++;
 	}
 
+	if (res == "FAIL") {
+		config->failed_tests_count += 1;
+	}
 
 	std::string result_line_json = "{\""+std::to_string(config->json_result_count)+ "/" + std::to_string(config->total_tasks_count) + "\": {"
 						"\"label\": \"" + label + "\", "
@@ -1661,6 +1664,7 @@ Config::Config(const std::string& result_fn) : result_file(result_fn), action(th
 	tls_cfg.verify_server = 0;
 	tls_cfg.verify_client = 0;
 	json_result_count = 0;
+	failed_tests_count = 0;
 	graceful_shutdown = false;
 	rewrite_ack_transport = false;
 	total_tasks_count = 0;
@@ -2411,7 +2415,15 @@ int main(int argc, char **argv){
 	}
 
 	if (ret == PJ_SUCCESS) {
-		LOG(logINFO) <<__FUNCTION__<<": Success" ;
+		if (config.total_tasks_count != config.json_result_count) {
+			ret = 3;
+			LOG(logINFO) <<__FUNCTION__<<": Task count mismatch: expected=" << config.total_tasks_count << " completed=" << config.json_result_count;
+		} else if (config.failed_tests_count > 0) {
+			ret = 2;
+			LOG(logINFO) <<__FUNCTION__<<": " << config.failed_tests_count << " test(s) failed";
+		} else {
+			LOG(logINFO) <<__FUNCTION__<<": Success" ;
+		}
 	} else {
 		LOG(logINFO) <<__FUNCTION__<<": Error Found" ;
 	}

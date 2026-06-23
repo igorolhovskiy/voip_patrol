@@ -1,23 +1,52 @@
-FROM python:3.7-buster
+FROM python:3.13-slim-bookworm AS builder
+LABEL maintainer="Ihor Olkhovskyi <ihor.olkhovskyi@cern.ch>"
 
-RUN echo "installing dependencies" \
-	&& apt-get update && apt-get install -y build-essential cmake pkg-config libasound2-dev \
-	&& apt-get -y install libssl-dev git libopus-dev libsrtp2-dev
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        libcurl4-openssl-dev \
+        cmake \
+        pkg-config \
+        libasound2-dev \
+        libssl-dev \
+        libopus-dev \
+        git && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN echo "building VoIP Patrol" \
-	&& mkdir /git && cd /git && git clone -b https://github.com/igorolhovskiy/voip_patrol.git \
-	&& cd voip_patrol \
-	&& git submodule update --init \
-	&& cd pjproject && ./configure --disable-libwebrtc --disable-opencore-amr \
-	&& cp ../include/config_site.h  pjlib/include/pj/config_site.h \
-	&& make dep && make && make install \
-	&& cd .. && cmake CMakeLists.txt && make
+RUN mkdir -p /git && \
+    git clone --depth 1 --recurse-submodules --shallow-submodules \
+        https://github.com/igorolhovskiy/voip_patrol.git /git/voip_patrol && \
+    cd /git/voip_patrol/pjproject && \
+    ./configure --disable-libwebrtc --disable-opencore-amr && \
+    cp ../include/config_site.h pjlib/include/pj/config_site.h && \
+    make dep && \
+    make -j$(nproc) && \
+    make install && \
+    cd /git/voip_patrol && \
+    cmake CMakeLists.txt && \
+    make -j$(nproc)
 
-RUN ln -s /git/voip_patrol/voice_ref_files /voice_ref_files
 
-RUN mkdir /xml
-RUN mkdir /output
+FROM python:3.13-slim-bookworm
+LABEL maintainer="Ihor Olkhovskyi <ihor.olkhovskyi@cern.ch>"
 
-COPY xml/basic_server.xml /xml
-COPY entry.sh /
-ENTRYPOINT ["/entry.sh"]
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libcurl4 \
+        libasound2 \
+        libssl3 \
+        libopus0 && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /git/voip_patrol/voip_patrol /git/voip_patrol/voip_patrol
+COPY --from=builder /git/voip_patrol/voice_ref_files /git/voip_patrol/voice_ref_files
+
+RUN ldconfig && \
+    ln -s /git/voip_patrol/voice_ref_files /voice_ref_files && \
+    mkdir -p /xml /output
+
+VOLUME ["/xml", "/output", "/voice_ref_files"]
+
+COPY --chmod=755 entry.sh /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]

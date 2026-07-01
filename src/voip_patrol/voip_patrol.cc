@@ -1190,6 +1190,14 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->expected_cause_code = expected_cause_code;
 		call->test->cancel_behavoir = cancel_behavoir;
 		call->test->fail_on_accept = fail_on_accept;
+		if (fail_on_accept) {
+			// do_accept() decremented total_tasks_count assuming no call would
+			// arrive and thus no result would be emitted. A call did arrive, so
+			// update_result() will emit a result (json_result_count += 1); restore
+			// the counter here so each emitted result has a matching task.
+			config->total_tasks_count += 1;
+			LOG(logINFO) << __FUNCTION__ << " restoring task counter to " << config->total_tasks_count << " due to unexpected incoming call";
+		}
 		call->test->expected_duration = expected_duration;
 		call->test->expected_duration_range = expected_duration_range;
 		call->test->expected_setup_duration = expected_setup_duration;

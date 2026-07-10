@@ -273,7 +273,6 @@ string Action::get_env(string env) {
 
 bool Action::set_param(ActionParam &param, const char *val) {
 	bool subst {false};
-	const char *tmp_val;
 
 	if (!val) {
 		return false;
@@ -289,12 +288,13 @@ bool Action::set_param(ActionParam &param, const char *val) {
 	}
 
 	if (param.type == APType::apt_bool) {
+		// Keep get_env()'s temporary alive for the full expression (unlike
+		// storing .c_str() in tmp_val, which dangles after the statement).
 		if (subst) {
-			tmp_val = get_env(val).c_str();
+			param.b_val = stob(get_env(val));
 		} else {
-			tmp_val = val;
+			param.b_val = stob(val);
 		}
-		param.b_val = stob(tmp_val);
 	} else if (param.type == APType::apt_integer) {
 		if (subst) {
 			param.i_val = safe_atoi(get_env(val).c_str());
@@ -368,6 +368,10 @@ void Action::init_actions_params() {
 	do_call_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	do_call_params.push_back(ActionParam("contact_uri_params", false, APType::apt_string));
 	do_call_params.push_back(ActionParam("require_100rel", false, APType::apt_string));
+	// Incoming REFER handling (default: pjsua executes the transfer).
+	do_call_params.push_back(ActionParam("process_transfers", false, APType::apt_bool, "", 0, 0.0, true));
+	do_call_params.push_back(ActionParam("refer_reply_code", false, APType::apt_integer, "", 202));
+	do_call_params.push_back(ActionParam("refer_notify_status", false, APType::apt_integer, "", 200));
 	// do_register
 	do_register_params.push_back(ActionParam("transport", false, APType::apt_string));
 	do_register_params.push_back(ActionParam("label", false, APType::apt_string));
@@ -423,6 +427,10 @@ void Action::init_actions_params() {
 	do_accept_params.push_back(ActionParam("disable_turn", false, APType::apt_bool));
 	do_accept_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer));
 	do_accept_params.push_back(ActionParam("require_100rel", false, APType::apt_string));
+	// Incoming REFER handling (default: pjsua executes the transfer).
+	do_accept_params.push_back(ActionParam("process_transfers", false, APType::apt_bool, "", 0, 0.0, true));
+	do_accept_params.push_back(ActionParam("refer_reply_code", false, APType::apt_integer, "", 202));
+	do_accept_params.push_back(ActionParam("refer_notify_status", false, APType::apt_integer, "", 200));
 	// do_wait
 	do_wait_params.push_back(ActionParam("ms", false, APType::apt_integer));
 	do_wait_params.push_back(ActionParam("complete", false, APType::apt_bool));
@@ -817,6 +825,25 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	acc->account_name = account_name;
 }
 
+// Shared by do_call/do_accept: invalid REFER policy values fall back to
+// defaults with a WARNING; reply/notify are ignored when process_transfers=true.
+static void validate_refer_policy(const char *ctx, bool process_transfers, int &refer_reply_code, int &refer_notify_status) {
+	if (refer_reply_code > 0 && (refer_reply_code < 200 || refer_reply_code > 699)) {
+		LOG(logWARNING) << ctx << ": invalid refer_reply_code " << refer_reply_code
+		                << " (expected <=0 or 200..699), falling back to 202";
+		refer_reply_code = 202;
+	}
+	if (refer_notify_status != 0 && (refer_notify_status < 200 || refer_notify_status > 699)) {
+		LOG(logWARNING) << ctx << ": invalid refer_notify_status " << refer_notify_status
+		                << " (expected 0 or 200..699 - a final sipfrag status), falling back to 200";
+		refer_notify_status = 200;
+	}
+	if (process_transfers && (refer_reply_code != 202 || refer_notify_status != 200)) {
+		LOG(logWARNING) << ctx << ": refer_reply_code/refer_notify_status are ignored "
+		                   "when process_transfers=true (pjsua follows the transfer)";
+	}
+}
+
 void Action::do_accept(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers) {
 	string type {"accept"};
 	string account_name {};
@@ -854,9 +881,15 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	string reason {};
 	string contact_params {};
 	string prack_support {"none"};
+	bool process_transfers {true};
+	int refer_reply_code {202};
+	int refer_notify_status {200};
 
 	for (auto param : params) {
 		if (param.name.compare("match_account") == 0) account_name = param.s_val;
+		else if (param.name.compare("process_transfers") == 0) process_transfers = param.b_val;
+		else if (param.name.compare("refer_reply_code") == 0) refer_reply_code = param.i_val;
+		else if (param.name.compare("refer_notify_status") == 0) refer_notify_status = param.i_val;
 		else if (param.name.compare("transport") == 0) transport = param.s_val;
 		else if (param.name.compare("play") == 0 && param.s_val.length() > 0) play = param.s_val;
 		else if (param.name.compare("record") == 0) recording = param.s_val;
@@ -914,6 +947,10 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 		return;
 	}
 	filter_accountname(&account_name);
+
+	// REFER policy: stored on the account, copied onto each call's Test in
+	// onIncomingCall(), resolved per-dialog in mod_voip_patrol.
+	validate_refer_policy(__FUNCTION__, process_transfers, refer_reply_code, refer_notify_status);
 
 	vp::tolower(transport);
 	string transport_param = normalize_transport_param(transport);
@@ -1061,6 +1098,9 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	acc->cancel_behavoir = cancel_behavoir;
 	acc->fail_on_accept	= fail_on_accept;
 	acc->disable_turn = disable_turn;
+	acc->process_transfers = process_transfers;
+	acc->refer_reply_code = refer_reply_code;
+	acc->refer_notify_status = refer_notify_status;
 	acc->account_name = account_name;
 	acc->expected_duration = expected_duration;
 	acc->expected_duration_range = expected_duration_range;
@@ -1109,10 +1149,16 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 	bool disable_turn {false};
 	string force_contact {};
 	string prack_support {"none"};
+	bool process_transfers {true};
+	int refer_reply_code {202};
+	int refer_notify_status {200};
 
 	for (auto param : params) {
 		if (param.name.compare("callee") == 0) callee = param.s_val;
 		else if (param.name.compare("caller") == 0) caller = param.s_val;
+		else if (param.name.compare("process_transfers") == 0) process_transfers = param.b_val;
+		else if (param.name.compare("refer_reply_code") == 0) refer_reply_code = param.i_val;
+		else if (param.name.compare("refer_notify_status") == 0) refer_notify_status = param.i_val;
 		else if (param.name.compare("from") == 0) from = param.s_val;
 		else if (param.name.compare("to_uri") == 0) to_uri = param.s_val;
 		else if (param.name.compare("transport") == 0) transport = param.s_val;
@@ -1171,6 +1217,9 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		config->total_tasks_count += 100;
 		return;
 	}
+
+	// REFER policy: stored per-Test below, resolved per-dialog in mod_voip_patrol.
+	validate_refer_policy(__FUNCTION__, process_transfers, refer_reply_code, refer_notify_status);
 
 	// Total task count should be updated as well in a case of multiple calls
 	if (call_count > 1) {
@@ -1379,6 +1428,9 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		test->force_contact = force_contact;
 		test->srtp = srtp;
 		test->early_cancel = early_cancel;
+		test->process_transfers = process_transfers;
+		test->refer_reply_code = refer_reply_code;
+		test->refer_notify_status = refer_notify_status;
 		std::size_t pos = caller.find("@");
 
 		if (pos!=std::string::npos) {
@@ -1395,6 +1447,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		config->calls.push_back(call);
 
 		call->test = test;
+		test->checks = checks;
 		test->expected_cause_code = expected_cause_code;
 		test->from = caller;
 		test->to = callee;

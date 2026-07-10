@@ -303,6 +303,11 @@ class Test {
 		std::string remote_contact;
 		std::string call_direction;
 		std::string sip_call_id {""};
+		// Incoming REFER policy (see mod_voip_patrol.cc); reply/notify values
+		// apply only when process_transfers is false.
+		bool process_transfers {true};
+		int refer_reply_code {202};
+		int refer_notify_status {200};
 		std::string label {"default"};
 		std::string accept_label {"accept_default"};
 		std::string transport;
@@ -372,6 +377,10 @@ class TestAccount : public Account {
 		bool early_media {false};
 		bool fail_on_accept {false};
 		bool disable_turn {false};
+		// Incoming REFER policy; copied onto each call's Test in onIncomingCall().
+		bool process_transfers {true};
+		int refer_reply_code {202};
+		int refer_notify_status {200};
 		std::string recording {""};
 		bool record_early {false};
 		// When set, each accepted call's recording filename gets a unique
@@ -433,5 +442,10 @@ class TestCall : public Call {
 };
 
 bool stob(std::string s);
+
+// mod_voip_patrol behaviour toggles (defined in mod_voip_patrol.cc).
+void vp_set_rewrite_ack(bool enabled);
+void vp_set_config(Config *cfg);
+void vp_clear_refer_seen(const std::string &call_id);
 
 #endif

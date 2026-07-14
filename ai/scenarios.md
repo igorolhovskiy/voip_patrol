@@ -95,7 +95,7 @@ Key parameters:
 - A username registered with a `register` action — matches calls to that account
 - A user part of the called URI — matches calls to a specific extension
 
-Key parameters:dt
+Key parameters:
 
 
 | Parameter             | Type   | Notes                                                                                                                                                   |

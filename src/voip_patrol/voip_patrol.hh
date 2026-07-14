@@ -332,6 +332,7 @@ class Test {
 		bool rtp_stats_ready{false};
 		bool queued {false};
 		bool fail_on_accept {false};
+		bool unexpected_call {false};
 		std::string expected_message;
 		std::string message;
 		vector<ActionCheck> checks;

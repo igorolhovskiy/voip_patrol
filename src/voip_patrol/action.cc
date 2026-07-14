@@ -1920,6 +1920,10 @@ void Action::do_wait(const vector<ActionParam> &params) {
 	LOG(logINFO) << __FUNCTION__ << " processing duration_ms:" << duration_ms << " complete all tests:" << complete_all;
 
 	bool completed = false;
+	// Set when the wait exits because its deadline elapsed (as opposed to all
+	// tests completing); used below to fail accepts with unfulfilled call_count.
+	bool timed_out = false;
+	const int initial_duration_ms = duration_ms;
 	int tests_running = 0;
 	// status_update gates one-shot log lines so they don't flood on every 10ms iteration
 	bool status_update = true;
@@ -2131,6 +2135,7 @@ void Action::do_wait(const vector<ActionParam> &params) {
 		if (duration_ms <= 0 && duration_ms != -1) {
 			LOG(logINFO) << __FUNCTION__ << LOG_COLOR_ERROR << ": action[wait] overall duration exceeded, exiting... " << LOG_COLOR_END;
 			completed = true;
+			timed_out = true;
 		}
 
 		if (tests_running > 0 && complete_all) {
@@ -2164,6 +2169,41 @@ void Action::do_wait(const vector<ActionParam> &params) {
 
 			completed = true;
 			LOG(logINFO) << __FUNCTION__ << ": completed";
+		}
+	}
+
+	// A "complete" wait whose deadline expired while an accept action still
+	// expects calls (call_count > 0) means those calls never arrived. Emit an
+	// explicit FAIL result for each such accept and clear its pending count,
+	// so a call arriving later is reported as unexpected (see onIncomingCall).
+	// The timeout itself is not an error: accounts with fail_on_accept expect
+	// no calls at all, so their pending count is not a failure.
+	if (complete_all && timed_out && initial_duration_ms > 0) {
+		for (auto & account : config->accounts) {
+			if (account->call_count <= 0 || account->fail_on_accept) {
+				continue;
+			}
+			LOG(logINFO) << __FUNCTION__ << ": accept[" << account->accept_label << "] still expects "
+			             << account->call_count << " call(s) that never arrived, reporting FAIL";
+			// The accept budgeted one task per expected call, but the whole
+			// shortfall is reported as a single FAIL result: shrink the task
+			// counter so every emitted result keeps a matching task.
+			if (account->call_count > 1) {
+				config->total_tasks_count -= account->call_count - 1;
+				LOG(logINFO) << __FUNCTION__ << " decreasing task counter to " << config->total_tasks_count
+				             << " due to expected calls that never arrived";
+			}
+			AccountInfo acc_inf = account->getInfo();
+			Test *test = new Test(config, "accept");
+			test->label = account->accept_label;
+			test->expected_cause_code = account->expected_cause_code;
+			// call_count > 0 makes update_result() report FAIL with "Still N calls left"
+			test->call_count = account->call_count;
+			test->local_user = acc_inf.uri;
+			test->local_uri = acc_inf.uri;
+			test->update_result();
+			delete test;
+			account->call_count = 0;
 		}
 	}
 }

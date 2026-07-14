@@ -1196,7 +1196,15 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 			// update_result() will emit a result (json_result_count += 1); restore
 			// the counter here so each emitted result has a matching task.
 			config->total_tasks_count += 1;
+
 			LOG(logINFO) << __FUNCTION__ << " restoring task counter to " << config->total_tasks_count << " due to unexpected incoming call";
+		} else if (call_count == 0) {
+			// The account's accept/call_count is already 0, so the call is unexpected.
+			// Flag the test so update_result()
+			call->test->unexpected_call = true;
+			config->total_tasks_count += 1;
+
+			LOG(logINFO) << __FUNCTION__ << " increasing task counter to " << config->total_tasks_count << " due to incoming call beyond call_count";
 		}
 		call->test->expected_duration = expected_duration;
 		call->test->expected_duration_range = expected_duration_range;
@@ -1413,6 +1421,8 @@ void Test::update_result() {
 
 	if (fail_on_accept && type == "accept") {
 		res_text = "This call should not happen";
+	} else if (unexpected_call) {
+		res_text = "Unexpected call: accept call_count already reached";
 	} else if (expected_duration && expected_duration != connect_duration) {
 		res_text = "Expected duration " + std::to_string(expected_duration) + " != " + std::to_string(connect_duration) + " actual duration";
 	} else if (!validateDuration(expected_duration_range, connect_duration, res_text, "expected_duration")) {

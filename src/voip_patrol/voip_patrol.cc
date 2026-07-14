@@ -1779,6 +1779,9 @@ TestAccount* Config::findAccount(std::string account_name) {
 		}
 	}
 	LOG(logINFO) << __FUNCTION__ << ": falling back to URI search";
+	// Normalise E.164: strip a leading '+' from the search key AND from the
+	// URI user part so "+1555..." and "1555..." resolve to the same account
+	// (bxfer/hold look up by caller=user@host against sips:+user@host).
 	if (account_name.compare(0, 1, "+") == 0) {
 		account_name.erase(0,1);
 	}
@@ -1788,8 +1791,12 @@ TestAccount* Config::findAccount(std::string account_name) {
 		if (acc_inf.uri.compare(0, 4, "sips") == 0) {
 			proto_length = 5;
 		}
-		LOG(logINFO) << __FUNCTION__ << ": [searching account]["<< acc_inf.id << "]["<<acc_inf.uri<<"]["<<acc_inf.uri.substr(proto_length)<<"]<>["<<account_name<<"]";
-		if (acc_inf.uri.compare(proto_length, account_name.length(), account_name) == 0) {
+		string uri_rest = acc_inf.uri.substr(proto_length);
+		if (uri_rest.compare(0, 1, "+") == 0) {
+			uri_rest.erase(0, 1);
+		}
+		LOG(logINFO) << __FUNCTION__ << ": [searching account]["<< acc_inf.id << "]["<<acc_inf.uri<<"]["<<uri_rest<<"]<>["<<account_name<<"]";
+		if (uri_rest.compare(0, account_name.length(), account_name) == 0) {
 			LOG(logINFO) << __FUNCTION__ << ": found account id["<< acc_inf.id <<"] uri[" << acc_inf.uri <<"]";
 			return account;
 		}

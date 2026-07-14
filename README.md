@@ -528,7 +528,7 @@ A `_<n>` suffix is appended before the extension, where `n` is the 1-based call 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | caller | string | `user@host` of the account who is doing the transfer. Mandatory |
-| to_uri | string | Transfer destination URI `user@host`. Mandatory |
+| to_uri | string | Transfer destination URI. Mandatory. Normalised to name-addr format. Supports optional URI escaped parameters e.g: to_uri="+19995550100@pbx.example.com?X-param=value1&amp;X-param2=value2"
 | label | string | Test description or label |
 | expected_cause_code | int | Expected SIP response code from the REFER transaction (end of NOTIFY sequence), default `200` |
 

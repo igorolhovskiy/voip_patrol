@@ -1754,6 +1754,11 @@ void Action::do_bxfer(const vector<ActionParam> &params) {
 		else if (param.name == "expected_cause_code") expected_cause_code = param.i_val;
 	}
 
+	// Trim surrounding whitespace before the empty guard so an all-whitespace
+	// to_uri fails cleanly and the scheme check below can't be fooled.
+	to_uri.erase(0, to_uri.find_first_not_of(" \t"));
+	to_uri.erase(to_uri.find_last_not_of(" \t") + 1);
+
 	// Create a test record immediately so any early failure can be reported via update_result()
 	Test *test = new Test(config, "bxfer");
 	test->label = label;
@@ -1770,9 +1775,15 @@ void Action::do_bxfer(const vector<ActionParam> &params) {
 		return;
 	}
 
-	// Normalise to_uri: add sip: scheme if the caller omitted it
-	if (to_uri.find("sip:") != 0 && to_uri.find("sips:") != 0) {
-		to_uri = "sip:" + to_uri;
+	// Normalise to_uri to name-addr form: add sip: scheme if omitted and wrap
+	// in <> (required when the URI carries ?header=value parts, and always
+	// valid for Refer-To). A value already wrapped in <> is passed verbatim -
+	// it must then include the scheme itself.
+	if (to_uri[0] != '<') {
+		if (to_uri.find("sip:") != 0 && to_uri.find("sips:") != 0) {
+			to_uri = "sip:" + to_uri;
+		}
+		to_uri = "<" + to_uri + ">";
 	}
 
 	TestAccount *caller_acc = find_caller_account(caller);

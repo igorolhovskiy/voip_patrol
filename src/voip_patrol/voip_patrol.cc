@@ -999,10 +999,12 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 	} else if (prm.e.type == PJSIP_EVENT_RX_MSG) {
 		pjsip_rx_data *pjsip_rxdata = (pjsip_rx_data *) prm.e.body.rxMsg.rdata.pjRxData;
 		if (pjsip_rxdata && pjsip_rxdata->msg_info.msg && pjsip_rxdata->msg_info.msg->type == PJSIP_REQUEST_MSG) {
-			LOG(logINFO) <<__FUNCTION__<<": "+ pj2Str(pjsip_rxdata->msg_info.msg->line.req.method.name);
-			std::string message;
-			message.append(pjsip_rxdata->msg_info.msg_buf, pjsip_rxdata->msg_info.len);
-			if (test) {
+			std::string method = pj2Str(pjsip_rxdata->msg_info.msg->line.req.method.name);
+			LOG(logINFO) <<__FUNCTION__<<": "+ method;
+			// REFER is checked in mod_voip_patrol; skip to avoid double-applying.
+			if (method != "REFER" && test) {
+				std::string message;
+				message.append(pjsip_rxdata->msg_info.msg_buf, pjsip_rxdata->msg_info.len);
 				check_checks(test->checks, pjsip_rxdata->msg_info.msg, message);
 			}
 		}
@@ -1104,6 +1106,9 @@ void TestCall::onCallState(OnCallStateParam &prm) {
 		std::string res = " code [" + std::to_string(ci.lastStatusCode) + "] reason ["+ ci.lastReason +"] remote user [" + remote_user + "]";
 		test->rtp_stats_ready = true;
 		test->update_result();
+		// Drop REFER dedupe state for this Call-ID; retransmits after hangup
+		// are ignored via is_disconnecting() in vp_get_refer_policy.
+		vp_clear_refer_seen(ci.callIdString.empty() ? test->sip_call_id : ci.callIdString);
 
 		LOG(logINFO) <<__FUNCTION__<<": [Call disconnected]:"<< res;
 
@@ -1190,6 +1195,9 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		call->test->expected_cause_code = expected_cause_code;
 		call->test->cancel_behavoir = cancel_behavoir;
 		call->test->fail_on_accept = fail_on_accept;
+		call->test->process_transfers = process_transfers;
+		call->test->refer_reply_code = refer_reply_code;
+		call->test->refer_notify_status = refer_notify_status;
 		if (fail_on_accept) {
 			// do_accept() decremented total_tasks_count assuming no call would
 			// arrive and thus no result would be emitted. A call did arrive, so
@@ -1709,6 +1717,9 @@ bool Config::removeCall(TestCall *call) {
 	for (auto it = calls.begin(); it != calls.end(); ++it) {
 		if (*it == call) {
 			found = true;
+			if (call->test && !call->test->sip_call_id.empty()) {
+				vp_clear_refer_seen(call->test->sip_call_id);
+			}
 			calls.erase(it);
 			break;
 		}
@@ -1768,6 +1779,9 @@ TestAccount* Config::findAccount(std::string account_name) {
 		}
 	}
 	LOG(logINFO) << __FUNCTION__ << ": falling back to URI search";
+	// Normalise E.164: strip a leading '+' from the search key AND from the
+	// URI user part so "+1555..." and "1555..." resolve to the same account
+	// (bxfer/hold look up by caller=user@host against sips:+user@host).
 	if (account_name.compare(0, 1, "+") == 0) {
 		account_name.erase(0,1);
 	}
@@ -1777,8 +1791,12 @@ TestAccount* Config::findAccount(std::string account_name) {
 		if (acc_inf.uri.compare(0, 4, "sips") == 0) {
 			proto_length = 5;
 		}
-		LOG(logINFO) << __FUNCTION__ << ": [searching account]["<< acc_inf.id << "]["<<acc_inf.uri<<"]["<<acc_inf.uri.substr(proto_length)<<"]<>["<<account_name<<"]";
-		if (acc_inf.uri.compare(proto_length, account_name.length(), account_name) == 0) {
+		string uri_rest = acc_inf.uri.substr(proto_length);
+		if (uri_rest.compare(0, 1, "+") == 0) {
+			uri_rest.erase(0, 1);
+		}
+		LOG(logINFO) << __FUNCTION__ << ": [searching account]["<< acc_inf.id << "]["<<acc_inf.uri<<"]["<<uri_rest<<"]<>["<<account_name<<"]";
+		if (uri_rest.compare(0, account_name.length(), account_name) == 0) {
 			LOG(logINFO) << __FUNCTION__ << ": found account id["<< acc_inf.id <<"] uri[" << acc_inf.uri <<"]";
 			return account;
 		}
@@ -1874,6 +1892,11 @@ replay:
 					continue;
 				}
 				check.hdr.hName = val_inner;
+				// Optional method filter for this check (default INVITE).
+				val_inner = ezxml_attr(xml_check, "method");
+				if (val_inner) {
+					check.method = string(val_inner);
+				}
 				val_inner = ezxml_attr(xml_check, "value");
 				if (val_inner) {
 					check.hdr.hValue = val_inner;
@@ -1889,7 +1912,7 @@ replay:
 				if (val_inner) {
 					check.fail_on_match = stob(val_inner);
 				}
-				LOG(logINFO) <<__FUNCTION__<< " check-header:" << check.hdr.hName << " " << check.hdr.hValue << " fail_on_match: " << check.fail_on_match;
+				LOG(logINFO) <<__FUNCTION__<< " check-header:" << check.hdr.hName << " method[" << check.method << "] " << check.hdr.hValue << " fail_on_match: " << check.fail_on_match;
 
 				checks.push_back(check);
 			}
@@ -2193,11 +2216,13 @@ int main(int argc, char **argv){
 
 	try {
 		ep.libCreate();
-		if (config.rewrite_ack_transport) {
-			/* Register stateless server module */
-			pj_status_t status = -1;
+		{
+			// Always register mod_voip_patrol; its behaviours are opt-in
+			// (see mod_voip_patrol.cc), so this doesn't change stock behaviour.
+			vp_set_rewrite_ack(config.rewrite_ack_transport);
+			vp_set_config(&config);
 			struct pjsua_data* pjsua_var = pjsua_get_var();
-			status = pjsip_endpt_register_module(pjsua_var->endpt, &mod_voip_patrol);
+			pj_status_t status = pjsip_endpt_register_module(pjsua_var->endpt, &mod_voip_patrol);
 			PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
 		}
 		EpConfig ep_cfg;

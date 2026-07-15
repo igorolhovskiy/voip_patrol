@@ -11,6 +11,7 @@ This is a fork of the [original project](https://github.com/jchavanton/voip_patr
 * Reworked match mechanism on `accept` test to rely on Contact URI parameters (see `account` - `match_account` notes below)
 * Added `fail_on_accept` parameter to control calls, that should not happen
 * Blind transfer via REFER
+* Local processing (or not) of remote REFER
 * Call hold/unhold support via [rfc3264](https://datatracker.ietf.org/doc/html/rfc3264)
 * Code formatting :)
 
@@ -388,6 +389,9 @@ DISCONNECTED
 | fail_on_accept | bool | If `true` - than accepting this call counts as a failed test |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account |
 | hangup | int | call duration in second before hangup |
+| process_transfers   | bool   | Default `true`: follow an inbound REFER on accepted calls. `false`: intercept the REFER — transfer not executed, reply with `refer_reply_code`          |
+| refer_reply_code    | int    | Only when `process_transfers="false"`. SIP code for the REFER reply (default `202`); `<=0` = drop silently                                              |
+| refer_notify_status | int    | Only when `process_transfers="false"` and the REFER reply is 2xx. NOTIFY sipfrag sequence `100` then this final status (default `200`); `0` = no NOTIFY |
 
 
 ### call command parameters
@@ -431,6 +435,9 @@ DISCONNECTED
 | wait_until | string | hold scenario execution at this call state before continuing (e.g. `INVITE`, `EARLY`, `CONNECTING`, `CONFIRMED`, `DISCONNECTED`) |
 | call_count | int | do this call `N` times |
 | call_interval_ms | int | delay in milliseconds between consecutive calls when `call_count` > 1. Default `0` (no delay) |
+| process_transfers   | bool   | Default `true`: follow an inbound REFER (execute the transfer). `false`: intercept the REFER — transfer not executed, reply with `refer_reply_code`                                                                                                     |
+| refer_reply_code    | int    | Only when `process_transfers="false"`. SIP code for the REFER reply (default `202`); `<=0` = drop silently, no reply, no NOTIFY                                                                                                                         |
+| refer_notify_status | int    | Only when `process_transfers="false"` and the REFER reply is 2xx. After the reply, send NOTIFY sipfrag `100 Trying` then a final NOTIFY sipfrag with this status (default `200`); `0` = send no NOTIFY (leaves the peer's implied subscription hanging) |
 
 *Note: when `call_count` > 1 and `record` is set to an explicit filename (not `auto`), each call records to a separate file.
 A `_<n>` suffix is appended before the extension, where `n` is the 1-based call index (e.g. `rec_1.wav`, `rec_2.wav`).*

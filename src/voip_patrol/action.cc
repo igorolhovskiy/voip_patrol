@@ -1444,7 +1444,12 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		}
 
 		TestCall *call = new TestCall(acc);
+
+		// vp_on_rx_request iterates config->calls on the PJSIP worker thread
+		// under checking_calls; guard every mutation of the vector with it.
+		config->checking_calls.lock();
 		config->calls.push_back(call);
+		config->checking_calls.unlock();
 
 		call->test = test;
 		test->checks = checks;
@@ -1993,17 +1998,6 @@ void Action::do_wait(const vector<ActionParam> &params) {
 	bool status_update = true;
 
 	while (!completed) {
-
-		// Incoming calls are accepted on the PJSIP network thread and queued in new_calls.
-		// Move them into the main calls list here, on the wait-loop thread, to avoid
-		// touching config->calls from two threads simultaneously.
-		config->new_calls_lock.lock();
-		if (!config->new_calls.empty()) {
-			auto it = config->new_calls.begin();
-			config->calls.push_back(std::move(*it));
-			config->new_calls.erase(it);
-		}
-		config->new_calls_lock.unlock();
 
 		// Account-level tests (e.g. registration): clean up finished ones and count active ones.
 		for (auto & account : config->accounts) {

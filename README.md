@@ -11,7 +11,6 @@ This is a fork of the [original project](https://github.com/jchavanton/voip_patr
 * Reworked match mechanism on `accept` test to rely on Contact URI parameters (see `account` - `match_account` notes below)
 * Added `fail_on_accept` parameter to control calls, that should not happen
 * Blind transfer via REFER
-* Local processing (or not) of remote REFER
 * Call hold/unhold support via [rfc3264](https://datatracker.ietf.org/doc/html/rfc3264)
 * Code formatting :)
 
@@ -32,7 +31,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 [quick start with docker](QUICK_START.md)
 
 ### AI assistant instructions
-[scenario writing, Docker usage, CI/CD integration guides for Claude Code / Codex](ai/SKILLS.md)
+[scenario writing, Docker usage, CI/CD integration guides for Claude Code / Codex](ai_docs/SKILLS.md)
 
 ### Linux Debian building from sources
 [see commands in Dockerfile](docker/Dockerfile)
@@ -122,11 +121,17 @@ This version is extension of [original project](https://github.com/jchavanton/vo
         <!-- Check that a header exists and NOT matches a specific regex -->
         <check-header name="RURI" regex="^INVITE\ sip:\d{5}@(\d{1,3}\.){3}\d{1,3}:\d{1,5};.*transport=[a-zA-Z]{3};.*"/>
         <!-- Not really a header, but allows to check the Request URI on an incoming INVITE-->
+        <check-header name="Refer-To" method="REFER" regex="sip:\+19995550100@"/>
+        <!-- Check Refer-To header in a case of incoming REFER -->
     </action>
     <action type="wait" ms="-1"/>
   </actions>
 </config>
 ```
+
+*Notes on checks:*
+- *`check-header` accepts an optional `method` attribute (default `INVITE`) selecting which incoming request the check applies to, e.g. `method="REFER"`.*
+- *Checks declared under a `call` action are now evaluated against incoming requests on the caller leg.*
 
 ### Example: accepting calls and searching the message with a regular expression
 ```xml
@@ -388,10 +393,10 @@ DISCONNECTED
 | cancel | string | `optional` - mark the test passed, if the call was canceled by the caller before answer, `force` - mark test passed ONLY if the call was canceled by the caller. Make sure that you set `ring_duration` > 0 |
 | fail_on_accept | bool | If `true` - than accepting this call counts as a failed test |
 | disable_turn | bool | If `true` - global turn configuration is ignored for this account |
+| process_transfers | bool | Handling of an incoming REFER (blind transfer) on accepted calls. `true` (default): the transfer is executed - a new call is placed toward the `Refer-To` target. `false`: the transfer is NOT executed; the REFER is answered with `refer_reply_code` followed by the NOTIFY sequence controlled by `refer_notify_status`. See [Incoming REFER handling](#incoming-refer-handling) |
+| refer_reply_code | int | Only with `process_transfers="false"`: SIP response code sent to an incoming REFER, `200`..`699`. `0` or negative: drop the REFER silently (no reply, no NOTIFY). Default `202` |
+| refer_notify_status | int | Only with `process_transfers="false"` and a 2xx `refer_reply_code`: final sipfrag status sent in the NOTIFY sequence (`100 Trying` first, then this value with `Subscription-State: terminated`). `0` disables the NOTIFY sequence. Default `200` |
 | hangup | int | call duration in second before hangup |
-| process_transfers   | bool   | Default `true`: follow an inbound REFER on accepted calls. `false`: intercept the REFER — transfer not executed, reply with `refer_reply_code`          |
-| refer_reply_code    | int    | Only when `process_transfers="false"`. SIP code for the REFER reply (default `202`); `<=0` = drop silently                                              |
-| refer_notify_status | int    | Only when `process_transfers="false"` and the REFER reply is 2xx. NOTIFY sipfrag sequence `100` then this final status (default `200`); `0` = no NOTIFY |
 
 
 ### call command parameters
@@ -435,9 +440,9 @@ DISCONNECTED
 | wait_until | string | hold scenario execution at this call state before continuing (e.g. `INVITE`, `EARLY`, `CONNECTING`, `CONFIRMED`, `DISCONNECTED`) |
 | call_count | int | do this call `N` times |
 | call_interval_ms | int | delay in milliseconds between consecutive calls when `call_count` > 1. Default `0` (no delay) |
-| process_transfers   | bool   | Default `true`: follow an inbound REFER (execute the transfer). `false`: intercept the REFER — transfer not executed, reply with `refer_reply_code`                                                                                                     |
-| refer_reply_code    | int    | Only when `process_transfers="false"`. SIP code for the REFER reply (default `202`); `<=0` = drop silently, no reply, no NOTIFY                                                                                                                         |
-| refer_notify_status | int    | Only when `process_transfers="false"` and the REFER reply is 2xx. After the reply, send NOTIFY sipfrag `100 Trying` then a final NOTIFY sipfrag with this status (default `200`); `0` = send no NOTIFY (leaves the peer's implied subscription hanging) |
+| process_transfers | bool | Handling of an incoming REFER (blind transfer) on this call. `true` (default): the transfer is executed - a new call is placed toward the `Refer-To` target. `false`: the transfer is NOT executed; the REFER is answered with `refer_reply_code` followed by the NOTIFY sequence controlled by `refer_notify_status`. See [Incoming REFER handling](#incoming-refer-handling) |
+| refer_reply_code | int | Only with `process_transfers="false"`: SIP response code sent to an incoming REFER, `200`..`699`. `0` or negative: drop the REFER silently (no reply, no NOTIFY). Default `202` |
+| refer_notify_status | int | Only with `process_transfers="false"` and a 2xx `refer_reply_code`: final sipfrag status sent in the NOTIFY sequence (`100 Trying` first, then this value with `Subscription-State: terminated`). `0` disables the NOTIFY sequence. Default `200` |
 
 *Note: when `call_count` > 1 and `record` is set to an explicit filename (not `auto`), each call records to a separate file.
 A `_<n>` suffix is appended before the extension, where `n` is the 1-based call index (e.g. `rec_1.wav`, `rec_2.wav`).*
@@ -535,9 +540,13 @@ A `_<n>` suffix is appended before the extension, where `n` is the 1-based call 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | caller | string | `user@host` of the account who is doing the transfer. Mandatory |
-| to_uri | string | Transfer destination URI. Mandatory. Normalised to name-addr format. Supports optional URI escaped parameters e.g: to_uri="+19995550100@pbx.example.com?X-param=value1&amp;X-param2=value2"
+| to_uri | string | Transfer destination URI `user@host`. Mandatory. Normalised to name-addr format. Supports optional URI escaped parameters e.g: to_uri="+19995550100@pbx.example.com?X-param=value1&amp;X-param2=value2" |
 | label | string | Test description or label |
 | expected_cause_code | int | Expected SIP response code from the REFER transaction (end of NOTIFY sequence), default `200` |
+
+*Notes:*
+- *`to_uri` is sent in the `Refer-To` header in name-addr form, e.g. `<sip:19995550100@pbx.example.com>`; the `sip:` scheme is added when omitted. A `to_uri` already wrapped in `<>` is passed verbatim and must include the scheme itself.*
+- *When matching `caller` (also for `hold`/`unhold`) against account URIs, a leading `+` is ignored on both sides, so `caller="15147371787@..."` also matches an account registered as `sip:+15147371787@...`. Avoid accounts differing only by a leading `+` in one scenario.*
 
 #### Example: blind transfer (bxfer)
 ```xml
@@ -562,6 +571,39 @@ A `_<n>` suffix is appended before the extension, where `n` is the 1-based call 
             expected_cause_code="200"
     />
     <action type="wait" complete="true" ms="25000"/>
+  </actions>
+</config>
+```
+
+### Incoming REFER handling
+
+The `call` and `accept` actions accept three parameters controlling what happens when the remote side sends a REFER (blind transfer) inside an established call:
+
+- `process_transfers="true"` (default): the transfer is executed - the REFER is accepted and a new call is placed toward the `Refer-To` target.
+- `process_transfers="false"`: the transfer is NOT executed. The REFER is intercepted and answered with `refer_reply_code` (default `202`):
+  - a 2xx reply is followed by the implicit-subscription NOTIFY sequence: sipfrag `100 Trying` (`Subscription-State: active`), then sipfrag `refer_notify_status` (default `200`, `Subscription-State: terminated`). Set `refer_notify_status="0"` to suppress the NOTIFY sequence. It is also suppressed when the REFER carries `Refer-Sub: false` ([RFC 4488](https://www.rfc-editor.org/rfc/rfc4488));
+  - a non-2xx reply (e.g. `603`) creates no subscription ([RFC 3515](https://www.rfc-editor.org/rfc/rfc3515)), so no NOTIFY is sent;
+  - `refer_reply_code="0"` drops the REFER silently - no reply, no NOTIFY.
+
+`refer_notify_status` is the transfer outcome you report to the transferor: `200` (default) makes the transferor believe the transfer succeeded, while a failure code such as `486` or `603` simulates a transfer that was attempted but failed - useful to test how the PBX/B2BUA reacts to transfer failure (reconnecting the original parties, announcements, teardown).
+
+Retransmitted REFERs are re-answered, but checks and the NOTIFY sequence are not applied twice. Out-of-range values fall back to the defaults with a WARNING in the log. `check-header`/`check-message` with `method="REFER"` are evaluated in both modes.
+
+#### Example: receiving a call and declining a blind transfer with 603
+```xml
+<config>
+  <actions>
+    <action type="accept"
+            match_account="default"
+            hangup="30"
+            code="200" reason="OK"
+            process_transfers="false"
+            refer_reply_code="603"
+    >
+        <check-header name="Refer-To" method="REFER" regex="^.*sip:19995550100@.*"/>
+        <!-- validate the transfer target even though the transfer is declined -->
+    </action>
+    <action type="wait" complete="true" ms="60000"/>
   </actions>
 </config>
 ```

@@ -608,12 +608,15 @@ TestCall::TestCall(TestAccount *p_acc, int call_id) : Call(*p_acc, call_id) {
 TestCall::~TestCall() {
 	if (test) {
 		Test* test_to_delete = nullptr;
+		// Keep a Config* alive across `test = nullptr`: unlocking through
+		// `test->config` after nulling was a null dereference that also
+		// leaked the lock, deadlocking vp_on_rx_request on the next REFER.
+		Config *config = test->config;
 		{
-			test->config->checking_calls.lock();
-			test->config->removeCall(this);
+			std::lock_guard<std::mutex> lock(config->checking_calls);
+			config->removeCall(this);
 			test_to_delete = test;
 			test = nullptr;
-			test->config->checking_calls.unlock();
 		}
 		delete test_to_delete;
 	}
@@ -1265,7 +1268,11 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	// 	call->test->call_count = call_count;
 	// }
 
+	// Guarded: config->calls is scanned by do_wait (main thread) and
+	// vp_on_rx_request under checking_calls.
+	config->checking_calls.lock();
 	config->calls.push_back(call);
+	config->checking_calls.unlock();
 
 	for (auto x_hdr : x_headers) {
 		prm.txOption.headers.push_back(x_hdr);
@@ -1281,9 +1288,6 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		if (call_count > 0) {
 			call_count -= 1;
 		}
-		config->new_calls_lock.lock();
-		config->new_calls.push_back(call);
-		config->new_calls_lock.unlock();
 
 		return;
 	}
@@ -1317,9 +1321,6 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	if (call_count > 0) {
 		call_count -= 1;
 	}
-	config->new_calls_lock.lock();
-	config->new_calls.push_back(call);
-	config->new_calls_lock.unlock();
 }
 
 void TestAccount::onInstantMessage(OnInstantMessageParam &prm) {
@@ -2413,12 +2414,24 @@ int main(int argc, char **argv){
 	bool disconnecting = true;
 	while (disconnecting) {
 		disconnecting = false;
-		for (auto & call : config.calls) {
+		// Iterate over a snapshot: config.calls is also read by vp_on_rx_request
+		// (worker thread) under checking_calls, and removeCall() below erases from
+		// it, which would invalidate a live range-for iterator. Never hold
+		// checking_calls across pjsua calls (hangup can block on the dialog mutex
+		// while the worker thread waits for checking_calls).
+
+		config.checking_calls.lock();
+		std::vector<TestCall *> calls_snapshot(config.calls);
+		config.checking_calls.unlock();
+
+		for (auto & call : calls_snapshot) {
 			pjsua_call_info pj_ci;
 			CallInfo ci;
 			if (call->is_disconnecting()) { // wait for call disconnections
 					if (call->test && call->test->completed) {
+						config.checking_calls.lock();
 						config.removeCall(call);
+						config.checking_calls.unlock();
 					}
 					disconnecting = true;
 					continue;
@@ -2428,7 +2441,12 @@ int main(int argc, char **argv){
 			LOG(logINFO) << __FUNCTION__ << " disconnecting >>> call[" << call->getId() << "][" << call << "] ";
 
 			if (status != PJ_SUCCESS) {
-				LOG(logINFO) << __FUNCTION__ << " can not get call info, removing call["<< call->getId() <<"]["<< call <<"] "<< config.removeCall(call);
+				config.checking_calls.lock();
+				bool removed = config.removeCall(call);
+				config.checking_calls.unlock();
+
+				LOG(logINFO) << __FUNCTION__ << " can not get call info, removing call[" << call->getId() << "][" << call << "] " << removed;
+
 				continue;
 			}
 			ci.fromPj(pj_ci);

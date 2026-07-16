@@ -185,8 +185,11 @@ class Config {
 		void createDefaultAccount();
 		turn_config_t turn_config;
 		std::vector<TestAccount *> accounts;
+		// All reads and writes of `calls` (any thread) must hold checking_calls:
+		// it is scanned by do_wait (main thread) and by the REFER rx hook in
+		// mod_voip_patrol (PJSIP worker thread). Incoming calls are inserted
+		// directly from onIncomingCall under the same mutex.
 		std::vector<TestCall *> calls;
-		std::vector<TestCall *> new_calls;
 		std::vector<Test *> tests;
 		std::vector<std::string> testResults;
 		ezxml_t xml_conf_head;
@@ -207,7 +210,6 @@ class Config {
 		Action action;
 		ResultFile result_file;
 		std::mutex checking_calls;
-		std::mutex new_calls_lock;
 		struct {
 			string ca_list;
 			string private_key;

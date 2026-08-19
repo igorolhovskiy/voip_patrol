@@ -1454,7 +1454,12 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		}
 
 		TestCall *call = new TestCall(acc);
+
+		// vp_on_rx_request iterates config->calls on the PJSIP worker thread
+		// under checking_calls; guard every mutation of the vector with it.
+		config->checking_calls.lock();
 		config->calls.push_back(call);
+		config->checking_calls.unlock();
 
 		call->test = test;
 		test->checks = checks;
@@ -2178,17 +2183,6 @@ void Action::do_wait(const vector<ActionParam> &params) {
 
 	while (!completed) {
 
-		// Incoming calls are accepted on the PJSIP network thread and queued in new_calls.
-		// Move them into the main calls list here, on the wait-loop thread, to avoid
-		// touching config->calls from two threads simultaneously.
-		config->new_calls_lock.lock();
-		if (!config->new_calls.empty()) {
-			auto it = config->new_calls.begin();
-			config->calls.push_back(std::move(*it));
-			config->new_calls.erase(it);
-		}
-		config->new_calls_lock.unlock();
-
 		// Account-level tests (e.g. registration): clean up finished ones and count active ones.
 		for (auto & account : config->accounts) {
 			AccountInfo acc_inf = account->getInfo();
@@ -2225,6 +2219,17 @@ void Action::do_wait(const vector<ActionParam> &params) {
 		// Hold the mutex for the entire call-scan block so that PJSIP callbacks
 		// (running on the network thread) cannot destroy calls while we inspect them.
 		config->checking_calls.lock();
+
+		// Incoming calls are accepted on the PJSIP network thread and queued in new_calls.
+		// Move them into the main calls list here, on the wait-loop thread and under
+		// checking_calls, to avoid touching config->calls from two threads simultaneously.
+		config->new_calls_lock.lock();
+		if (!config->new_calls.empty()) {
+			auto it = config->new_calls.begin();
+			config->calls.push_back(std::move(*it));
+			config->new_calls.erase(it);
+		}
+		config->new_calls_lock.unlock();
 
 		for (auto & call : config->calls) {
 			if (call->test && call->test->state == VPT_DONE) {

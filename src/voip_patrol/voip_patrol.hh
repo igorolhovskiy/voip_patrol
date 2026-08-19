@@ -29,6 +29,7 @@
 #include "ezxml/ezxml.h"
 #include <sstream>
 #include <ctime>
+#include <chrono>
 #include "log.h"
 #include "version.h"
 
@@ -56,6 +57,7 @@ bool validateDuration(const DurationRange& expected, int actual, std::string& er
 
 class TestAccount;
 class TestCall;
+class TestBuddy;
 class Test;
 class Config;
 
@@ -138,6 +140,24 @@ struct sipLatency {
 	pj_time_val byeSentTs;
 };
 
+// One NOTIFY observed for a "subscribe" action, in order of arrival.
+// t_ms is relative to the SUBSCRIBE being confirmed (first 2xx response).
+struct NotifyEvent {
+	int t_ms {0};
+	std::string state;
+	std::string reason;
+};
+
+// One entry of a "subscribe" action's expected_notify_events parameter:
+// "state,min-max" - state must occur (case-insensitively) at a t_ms within
+// [min_ms, max_ms]. Parsed by Action::do_subscribe(), checked in
+// Test::update_result() against notify_events
+struct ExpectedNotifyEvent {
+	std::string state;
+	int min_ms {0};
+	int max_ms {0};
+};
+
 class ResultFile {
 	public:
 		ResultFile(const std::string& file_name);
@@ -185,11 +205,9 @@ class Config {
 		void createDefaultAccount();
 		turn_config_t turn_config;
 		std::vector<TestAccount *> accounts;
-		// All reads and writes of `calls` (any thread) must hold checking_calls:
-		// it is scanned by do_wait (main thread) and by the REFER rx hook in
-		// mod_voip_patrol (PJSIP worker thread). Incoming calls are inserted
-		// directly from onIncomingCall under the same mutex.
 		std::vector<TestCall *> calls;
+		std::vector<TestCall *> new_calls;
+		std::vector<TestBuddy *> subscriptions;
 		std::vector<Test *> tests;
 		std::vector<std::string> testResults;
 		ezxml_t xml_conf_head;
@@ -210,6 +228,7 @@ class Config {
 		Action action;
 		ResultFile result_file;
 		std::mutex checking_calls;
+		std::mutex new_calls_lock;
 		struct {
 			string ca_list;
 			string private_key;
@@ -345,6 +364,10 @@ class Test {
 		vector<ActionCheck> checks;
 		Config *config;
 		sipLatency sip_latency;
+		std::vector<NotifyEvent> notify_events;
+		bool subscribe_confirmed {false};
+		std::chrono::steady_clock::time_point subscribe_confirmed_tp;
+		std::vector<ExpectedNotifyEvent> expected_notify_events;
 };
 
 class TestAccount : public Account {
@@ -361,6 +384,8 @@ class TestAccount : public Account {
 		virtual void onIncomingCall(OnIncomingCallParam &iprm);
 		virtual void onInstantMessage(OnInstantMessageParam &prm);
 		virtual void onInstantMessageStatus(OnInstantMessageStatusParam &prm);
+		virtual void onMwiInfo(OnMwiInfoParam &prm) override;
+		Test *mwi_test {nullptr};
 		int hangup_duration {0};
 		int re_invite_interval {0};
 		int max_duration {0};
@@ -443,11 +468,30 @@ class TestCall : public Call {
 		bool disconnecting;
 };
 
+// "subscribe" action (event="presence"|"dialog"): a dynamically created Buddy
+// owning one subscription.
+class TestBuddy : public Buddy {
+	public:
+		TestBuddy(TestAccount *acc, Test *test, const std::string &event_package);
+		~TestBuddy();
+		virtual void onBuddyEvSubState(OnBuddyEvSubStateParam &prm) override;
+		virtual void onBuddyEvSubDlgEventState(OnBuddyEvSubStateParam &prm) override;
+		TestAccount *acc;
+		Test *test;
+		std::string event_package;
+};
+
 bool stob(std::string s);
 
 // mod_voip_patrol behaviour toggles (defined in mod_voip_patrol.cc).
 void vp_set_rewrite_ack(bool enabled);
 void vp_set_config(Config *cfg);
 void vp_clear_refer_seen(const std::string &call_id);
+
+// Raw pjsua-level MWI enable/disable (pjsua2's Account::modify() would reset
+// other account fields to AccountConfig defaults, so this fetches-and-patches
+// the live pjsua config directly instead). expires_if_enabling is ignored
+// when enabled=false. Returns false on failure (logged).
+bool vp_set_mwi_enabled(int acc_id, bool enabled, unsigned expires_if_enabling);
 
 #endif

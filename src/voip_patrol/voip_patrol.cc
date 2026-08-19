@@ -26,8 +26,11 @@
 #include <pjsua2/call.hpp>
 #include <pjsua2/endpoint.hpp>
 #include <pj/ctype.h>
+#include <cctype>
 #include "pj_util.hpp"
+#include <pjsua-lib/pjsua.h>
 #include <pjsua-lib/pjsua_internal.h>
+#include <pjsip-simple/evsub_msg.h>
 #include <algorithm>
 
 using namespace pj;
@@ -608,15 +611,12 @@ TestCall::TestCall(TestAccount *p_acc, int call_id) : Call(*p_acc, call_id) {
 TestCall::~TestCall() {
 	if (test) {
 		Test* test_to_delete = nullptr;
-		// Keep a Config* alive across `test = nullptr`: unlocking through
-		// `test->config` after nulling was a null dereference that also
-		// leaked the lock, deadlocking vp_on_rx_request on the next REFER.
-		Config *config = test->config;
 		{
-			std::lock_guard<std::mutex> lock(config->checking_calls);
-			config->removeCall(this);
+			test->config->checking_calls.lock();
+			test->config->removeCall(this);
 			test_to_delete = test;
 			test = nullptr;
+			test->config->checking_calls.unlock();
 		}
 		delete test_to_delete;
 	}
@@ -1268,11 +1268,7 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	// 	call->test->call_count = call_count;
 	// }
 
-	// Guarded: config->calls is scanned by do_wait (main thread) and
-	// vp_on_rx_request under checking_calls.
-	config->checking_calls.lock();
 	config->calls.push_back(call);
-	config->checking_calls.unlock();
 
 	for (auto x_hdr : x_headers) {
 		prm.txOption.headers.push_back(x_hdr);
@@ -1288,6 +1284,9 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 		if (call_count > 0) {
 			call_count -= 1;
 		}
+		config->new_calls_lock.lock();
+		config->new_calls.push_back(call);
+		config->new_calls_lock.unlock();
 
 		return;
 	}
@@ -1321,6 +1320,9 @@ void TestAccount::onIncomingCall(OnIncomingCallParam &iprm) {
 	if (call_count > 0) {
 		call_count -= 1;
 	}
+	config->new_calls_lock.lock();
+	config->new_calls.push_back(call);
+	config->new_calls_lock.unlock();
 }
 
 void TestAccount::onInstantMessage(OnInstantMessageParam &prm) {
@@ -1357,6 +1359,202 @@ void TestAccount::onInstantMessageStatus(OnInstantMessageStatusParam &prm) {
 
 }
 
+bool vp_set_mwi_enabled(int acc_id, bool enabled, unsigned expires_if_enabling) {
+	pj_pool_t *pool = pjsua_pool_create("subscribe_mwi", 512, 512);
+	if (!pool) {
+		LOG(logERROR) << __FUNCTION__ << ": failed to allocate pool for MWI config";
+		return false;
+	}
+
+	pjsua_acc_config acc_cfg;
+	pj_status_t status = pjsua_acc_get_config((pjsua_acc_id)acc_id, pool, &acc_cfg);
+	if (status == PJ_SUCCESS) {
+		acc_cfg.mwi_enabled = enabled ? PJ_TRUE : PJ_FALSE;
+		if (enabled) {
+			acc_cfg.mwi_expires = expires_if_enabling > 0 ? expires_if_enabling : PJSIP_MWI_DEFAULT_EXPIRES;
+		}
+		status = pjsua_acc_modify((pjsua_acc_id)acc_id, &acc_cfg);
+	}
+	pj_pool_release(pool);
+
+	if (status != PJ_SUCCESS) {
+		LOG(logERROR) << __FUNCTION__ << ": " << (enabled ? "enabling" : "disabling")
+		              << " MWI failed (" << status << ")";
+	}
+	return status == PJ_SUCCESS;
+}
+
+// message-summary (MWI) event for do_subscribe(). Unlike presence/dialog
+// (TestBuddy::onBuddyEvSubState below), pjsua2 hands us the raw NOTIFY
+// (or SUBSCRIBE response) directly via prm.rdata - no Buddy/BuddyInfo needed.
+void TestAccount::onMwiInfo(OnMwiInfoParam &prm) {
+	if (!mwi_test || mwi_test->completed) {
+		return;
+	}
+
+	pjsip_rx_data *rdata = (pjsip_rx_data *) prm.rdata.pjRxData;
+	if (!rdata || !rdata->msg_info.msg) {
+		return;
+	}
+	pjsip_msg *msg = rdata->msg_info.msg;
+
+	LOG(logINFO) << __FUNCTION__ << ": state=" << prm.state;
+
+	if (msg->type == PJSIP_RESPONSE_MSG) {
+		// Response to our SUBSCRIBE: PENDING/ACTIVE means accepted (2xx),
+		// start the notify_events clock; TERMINATED here means it was
+		// rejected outright, in which case msg->line.status.code is the
+		// rejection code.
+		if (prm.state != PJSIP_EVSUB_STATE_TERMINATED) {
+			if (!mwi_test->subscribe_confirmed) {
+				mwi_test->subscribe_confirmed = true;
+				mwi_test->subscribe_confirmed_tp = std::chrono::steady_clock::now();
+			}
+			return;
+		}
+		mwi_test->result_cause_code = msg->line.status.code;
+		mwi_test->reason = pj2Str(msg->line.status.reason);
+		mwi_test->update_result();
+		mwi_test = nullptr;
+		return;
+	}
+
+	// Incoming NOTIFY.
+	int t_ms = 0;
+	if (mwi_test->subscribe_confirmed) {
+		t_ms = (int) std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now() - mwi_test->subscribe_confirmed_tp).count();
+	}
+	string message;
+	message.append(rdata->msg_info.msg_buf, rdata->msg_info.len);
+
+	NotifyEvent ev;
+	ev.t_ms = t_ms;
+	// state is the mailbox's own state (RFC 3842 "Messages-Waiting" line in
+	// the plain-text body), NOT the Subscription-State header.
+	{
+		size_t pos = message.find("Messages-Waiting:");
+		if (pos != string::npos) {
+			size_t start = pos + 18;
+			while (start < message.size() && message[start] == ' ') start++;
+			size_t end = message.find_first_of("\r\n", start);
+			ev.state = (end == string::npos) ? message.substr(start) : message.substr(start, end - start);
+		}
+	}
+	// reason: only set when the SUBSCRIBE dialog itself is ending.
+	{
+		static const pj_str_t SUB_STATE_HDR = { (char *)"Subscription-State", 19 };
+		pjsip_sub_state_hdr *hdr = (pjsip_sub_state_hdr *)
+			pjsip_msg_find_hdr_by_name(msg, &SUB_STATE_HDR, NULL);
+		if (hdr) {
+			ev.reason = pj2Str(hdr->reason_param);
+		}
+	}
+	mwi_test->notify_events.push_back(ev);
+
+	check_checks(mwi_test->checks, msg, message);
+
+	if (prm.state == PJSIP_EVSUB_STATE_TERMINATED) {
+		mwi_test->result_cause_code = 200;
+		mwi_test->reason = ev.reason;
+		mwi_test->update_result();
+		mwi_test = nullptr;
+	}
+}
+
+/*
+ *  TestBuddy implementation ("subscribe" action, event=presence|dialog)
+ */
+
+TestBuddy::TestBuddy(TestAccount *account, Test *test_, const string &event_package_)
+	: acc(account), test(test_), event_package(event_package_) {
+}
+
+TestBuddy::~TestBuddy() {
+	LOG(logINFO) << "[Buddy] is being deleted";
+}
+
+void TestBuddy::onBuddyEvSubState(OnBuddyEvSubStateParam &prm) {
+	if (!test || test->completed) {
+		return;
+	}
+
+	BuddyInfo bi;
+	try {
+		bi = getInfo();
+	} catch (Error &e) {
+		LOG(logERROR) << __FUNCTION__ << ": getInfo() failed: " << e.reason;
+		return;
+	}
+
+	pjsip_rx_data *rdata = nullptr;
+	if (prm.e.type == PJSIP_EVENT_TSX_STATE) {
+		rdata = (pjsip_rx_data *) prm.e.body.tsxState.src.rdata.pjRxData;
+	}
+
+	if (!test->subscribe_confirmed && bi.subState == PJSIP_EVSUB_STATE_ACCEPTED) {
+		test->subscribe_confirmed = true;
+		test->subscribe_confirmed_tp = std::chrono::steady_clock::now();
+	}
+
+	bool is_notify = false;
+	if (rdata && rdata->msg_info.msg && rdata->msg_info.msg->type == PJSIP_REQUEST_MSG) {
+		static const pj_str_t NOTIFY_METHOD = { (char *)"NOTIFY", 6 };
+		is_notify = (pj_stricmp(&rdata->msg_info.msg->line.req.method.name, &NOTIFY_METHOD) == 0);
+	}
+
+	bool resource_terminated = false;
+	if (is_notify) {
+		int t_ms = 0;
+		if (test->subscribe_confirmed) {
+			t_ms = (int) std::chrono::duration_cast<std::chrono::milliseconds>(
+					std::chrono::steady_clock::now() - test->subscribe_confirmed_tp).count();
+		}
+		NotifyEvent ev;
+		ev.t_ms = t_ms;
+		// state is the monitored resource's own state, read from the NOTIFY
+		// body - NOT the Subscription-State header (see NotifyEvent comment).
+		if (event_package == "dialog") {
+			pjsua_buddy_dlg_event_info dlg_info;
+			pj_bzero(&dlg_info, sizeof(dlg_info));
+			if (pjsua_buddy_get_dlg_event_info(getId(), &dlg_info) == PJ_SUCCESS
+			    && dlg_info.dialog_state.slen > 0) {
+				ev.state = pj2Str(dlg_info.dialog_state);
+			}
+		} else { // presence
+			switch (bi.presStatus.status) {
+				case PJSUA_BUDDY_STATUS_ONLINE:  ev.state = "open"; break;
+				case PJSUA_BUDDY_STATUS_OFFLINE: ev.state = "closed"; break;
+				default:                         ev.state = "unknown"; break;
+			}
+		}
+		// reason: only set when the SUBSCRIBE dialog itself is ending
+		ev.reason = (bi.subState == PJSIP_EVSUB_STATE_TERMINATED) ? bi.subTermReason : "";
+		test->notify_events.push_back(ev);
+
+		string message;
+		message.append(rdata->msg_info.msg_buf, rdata->msg_info.len);
+		check_checks(test->checks, rdata->msg_info.msg, message);
+
+		LOG(logINFO) << __FUNCTION__ << ": NOTIFY state=" << ev.state
+		             << " reason=" << ev.reason << " t_ms=" << ev.t_ms;
+
+		resource_terminated = (ev.state == "terminated");
+	}
+
+	bool sub_terminated = (bi.subState == PJSIP_EVSUB_STATE_TERMINATED);
+	if (sub_terminated || resource_terminated) {
+		test->result_cause_code = sub_terminated ? (int) bi.subTermCode : 200;
+		test->reason = sub_terminated ? bi.subTermReason : "";
+		test->update_result();
+	}
+}
+
+// event="dialog" fires this instead of onBuddyEvSubState(). Just reuse
+void TestBuddy::onBuddyEvSubDlgEventState(OnBuddyEvSubStateParam &prm) {
+	onBuddyEvSubState(prm);
+}
+
 /*
  *  Test implementation
  */
@@ -1383,6 +1581,17 @@ void jsonify(std::string *str) {
 		str->replace(index, 1, "\\\"");
 		index += 2;
 	}
+}
+
+// Case-insensitive compare for expected_notify_events state matching - wire
+// tokens are conventionally lowercase (RFC 4235/3856), but the parameter is
+// free-form user input.
+static bool ieq(const string &a, const string &b) {
+	if (a.size() != b.size()) return false;
+	for (size_t i = 0; i < a.size(); i++) {
+		if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) return false;
+	}
+	return true;
 }
 
 void Test::update_result() {
@@ -1530,6 +1739,59 @@ void Test::update_result() {
 		x++;
 	}
 
+	// expected_notify_events: ordered, positional match against notify_events
+	string result_expected_notify_events_json {};
+	if (!expected_notify_events.empty()) {
+		vector<const NotifyEvent*> actual;
+		for (auto &ev : notify_events) {
+			if (!ev.state.empty()) actual.push_back(&ev);
+		}
+
+		bool notify_events_pass = (actual.size() == expected_notify_events.size());
+		size_t n = std::max(actual.size(), expected_notify_events.size());
+		for (size_t i = 0; i < n; i++) {
+			bool has_expected = i < expected_notify_events.size();
+			bool has_actual = i < actual.size();
+			bool entry_pass = false;
+			string expected_state, actual_state;
+			int min_ms = 0, max_ms = 0, actual_t_ms = 0;
+
+			if (has_expected) {
+				expected_state = expected_notify_events[i].state;
+				min_ms = expected_notify_events[i].min_ms;
+				max_ms = expected_notify_events[i].max_ms;
+			}
+			if (has_actual) {
+				actual_state = actual[i]->state;
+				actual_t_ms = actual[i]->t_ms;
+			}
+			if (has_expected && has_actual) {
+				entry_pass = ieq(actual_state, expected_state) && actual_t_ms >= min_ms && actual_t_ms <= max_ms;
+			}
+			if (!entry_pass) {
+				notify_events_pass = false;
+			}
+
+			if (i > 0) result_expected_notify_events_json += ",";
+			string json_expected_state = expected_state;
+			jsonify(&json_expected_state);
+			string json_actual_state = actual_state;
+			jsonify(&json_actual_state);
+			result_expected_notify_events_json += "\"" + to_string(i) + "\":{"
+					"\"expected_state\": \"" + json_expected_state + "\", "
+					"\"expected_min_ms\": " + (has_expected ? to_string(min_ms) : "null") + ", "
+					"\"expected_max_ms\": " + (has_expected ? to_string(max_ms) : "null") + ", "
+					"\"actual_state\": \"" + json_actual_state + "\", "
+					"\"actual_t_ms\": " + (has_actual ? to_string(actual_t_ms) : "null") + ", "
+					"\"result\": \"" + (entry_pass ? "PASS" : "FAIL") + "\"}";
+		}
+
+		if (!notify_events_pass && !fail_on_accept) {
+			res = "FAIL";
+			res_text += "(expected_notify_events mismatch)";
+		}
+	}
+
 	if (res == "FAIL") {
 		config->failed_tests_count += 1;
 	}
@@ -1585,6 +1847,24 @@ void Test::update_result() {
 
 	if (!result_checks_json.empty())
 		result_line_json += ", \"check\":{" + result_checks_json + "}";
+
+	if (!notify_events.empty()) {
+		string notify_events_json {};
+		for (size_t i = 0; i < notify_events.size(); i++) {
+			if (i > 0) notify_events_json += ",";
+			string json_state = notify_events[i].state;
+			jsonify(&json_state);
+			string json_reason = notify_events[i].reason;
+			jsonify(&json_reason);
+			notify_events_json += "{\"t_ms\": " + std::to_string(notify_events[i].t_ms) +
+					", \"state\": \"" + json_state + "\", "
+					"\"reason\": \"" + json_reason + "\"}";
+		}
+		result_line_json += ", \"notify_events\":[" + notify_events_json + "]";
+	}
+
+	if (!result_expected_notify_events_json.empty())
+		result_line_json += ", \"expected_notify_events\":{" + result_expected_notify_events_json + "}";
 
 	if (rtp_stats && rtp_stats_ready)
 		result_line_json += ", \"rtp_stats\":[" + rtp_stats_json + "]";
@@ -1956,6 +2236,9 @@ replay:
 			} else if (action_type.compare("bxfer") == 0) {
 				total_tasks_count += 1;
 				action.do_bxfer(params);
+			} else if (action_type.compare("subscribe") == 0) {
+				total_tasks_count += 1;
+				action.do_subscribe(params, checks);
 			} else if (action_type.compare("hold") == 0) {
 				action.do_hold(params);
 			} else if (action_type.compare("unhold") == 0) {
@@ -2414,24 +2697,12 @@ int main(int argc, char **argv){
 	bool disconnecting = true;
 	while (disconnecting) {
 		disconnecting = false;
-		// Iterate over a snapshot: config.calls is also read by vp_on_rx_request
-		// (worker thread) under checking_calls, and removeCall() below erases from
-		// it, which would invalidate a live range-for iterator. Never hold
-		// checking_calls across pjsua calls (hangup can block on the dialog mutex
-		// while the worker thread waits for checking_calls).
-
-		config.checking_calls.lock();
-		std::vector<TestCall *> calls_snapshot(config.calls);
-		config.checking_calls.unlock();
-
-		for (auto & call : calls_snapshot) {
+		for (auto & call : config.calls) {
 			pjsua_call_info pj_ci;
 			CallInfo ci;
 			if (call->is_disconnecting()) { // wait for call disconnections
 					if (call->test && call->test->completed) {
-						config.checking_calls.lock();
 						config.removeCall(call);
-						config.checking_calls.unlock();
 					}
 					disconnecting = true;
 					continue;
@@ -2441,12 +2712,7 @@ int main(int argc, char **argv){
 			LOG(logINFO) << __FUNCTION__ << " disconnecting >>> call[" << call->getId() << "][" << call << "] ";
 
 			if (status != PJ_SUCCESS) {
-				config.checking_calls.lock();
-				bool removed = config.removeCall(call);
-				config.checking_calls.unlock();
-
-				LOG(logINFO) << __FUNCTION__ << " can not get call info, removing call[" << call->getId() << "][" << call << "] " << removed;
-
+				LOG(logINFO) << __FUNCTION__ << " can not get call info, removing call["<< call->getId() <<"]["<< call <<"] "<< config.removeCall(call);
 				continue;
 			}
 			ci.fromPj(pj_ci);
@@ -2466,6 +2732,21 @@ int main(int argc, char **argv){
 			}
 		}
 		pj_thread_sleep(50);
+	}
+
+	// Release any subscribe resources
+	for (auto *buddy : config.subscriptions) {
+		delete buddy;
+	}
+	config.subscriptions.clear();
+
+	for (auto *acc : config.accounts) {
+		if (!acc->mwi_test) {
+			continue;
+		}
+		LOG(logINFO) <<__FUNCTION__<<": disabling MWI subscription for account " << acc->account_name;
+		vp_set_mwi_enabled(acc->getId(), false, 0);
+		acc->mwi_test = nullptr;
 	}
 
 	try {

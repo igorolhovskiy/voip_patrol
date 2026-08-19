@@ -12,6 +12,7 @@ This is a fork of the [original project](https://github.com/jchavanton/voip_patr
 * Added `fail_on_accept` parameter to control calls, that should not happen
 * Blind transfer via REFER
 * Call hold/unhold support via [rfc3264](https://datatracker.ietf.org/doc/html/rfc3264)
+* SUBSCRIBE support (presence, dialog/BLF, message-summary/MWI) with a recorded NOTIFY timeline for later analysis
 * Code formatting :)
 
 In general, I'm trying to follow the original project features and changes, but don't expect, that your existing advanced scenarios from the original project will work with this fork, but the simple ones will work without any modifications.
@@ -607,6 +608,124 @@ Retransmitted REFERs are re-answered, but checks and the NOTIFY sequence are not
   </actions>
 </config>
 ```
+
+### subscribe command parameters
+
+Subscriber-side only: `subscribe` sends a SUBSCRIBE from an existing account (create it by `register` or `call` ) and reports the result asynchronously.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| label | string | Test description or label |
+| caller | string | `user@host` of the account sending the SUBSCRIBE, or the `account` name from `register`. Mandatory |
+| to_uri | string | Subscription target `user@host`. Mandatory for `event="presence"` and `event="dialog"`. Not used for `event="message-summary"` (see below) |
+| event | string | `presence`, `dialog`, or `message-summary`. Default `presence` |
+| expires | int | Requested subscription expiration in seconds. Only adjustable for `event="message-summary"` (default `300`); ignored (with a warning) for `presence`/`dialog`, which pjsua2 fixes at `PJSUA_PRES_TIMER` (~300s) |
+| expected_cause_code | int | Expected SIP response code to the SUBSCRIBE request itself, default `200` |
+| expected_notify_events | string | Assert the exact `notify_events` sequence (state and timing). Format: `"state1,tmin1-tmax1;state2,tmin2-tmax2;..."`, e.g. `expected_notify_events="trying,0-100;early,20-60;confirmed,60-200;terminated,9500-10500"`. See below |
+
+Any `check-message`/`check-header` with `method="NOTIFY"` is evaluated against every NOTIFY received on the subscription, same as `method="REFER"` checks on `bxfer`/`accept`.
+
+#### Events
+
+* **`presence`** - standard presence (RFC 3856). `to_uri` is the watched resource.
+* **`dialog`** - dialog event / BLF (RFC 4235), e.g. watching whether a monitored line is in a call. `to_uri` is the watched resource.
+* **`message-summary`** - MWI (RFC 3842). Account-scoped: it subscribes to the *caller's own* AOR, so `to_uri` is not used. It attaches to registration, so the account must already be registered - if the REGISTER fails, no SUBSCRIBE is ever sent and the test never completes.
+
+#### notify_events: the recorded NOTIFY timeline
+
+Every NOTIFY received on the subscription - not just the last one - is recorded into a `notify_events` array in the result, independently of whatever `check-message` checks pass or fail. Each entry is:
+
+```json
+{"t_ms": 5041, "state": "confirmed", "reason": ""}
+```
+
+| Field | Description |
+| ---- | ----------- |
+| t_ms | Milliseconds since the SUBSCRIBE was confirmed (first 2xx response), i.e. since the subscription started |
+| state | The **monitored resource's own state**, read from the NOTIFY body. Package-specific - see table below |
+| reason | Set only when the **subscription itself** is ending (not the resource) - the `Subscription-State` header's `reason` param, e.g. `noresource`. Empty otherwise |
+
+`state` is deliberately *not* the SIP-level `Subscription-State` header (`active`/`pending`/`terminated`) - that header describes the SUBSCRIBE/NOTIFY relationship, not the thing you're watching, and both happen to reuse the word "terminated" for different reasons: a monitored call ending (`state`) vs. the subscription itself ending (`reason`). A `dialog`/BLF subscription commonly reports several `state` transitions - `early` → `confirmed` → `terminated` - while the *subscription* stays active the whole time watching for the next call, so `reason` stays empty across all of them.
+
+`state` values, by `event`
+
+| event | state comes from | possible values |
+| ---- | ----------- | ----------- |
+| `dialog` | The `<dialog><state>` element of the `application/dialog-info+xml` body ([RFC 4235 §4.2](https://datatracker.ietf.org/doc/html/rfc4235#section-4.2)) - i.e. the watched line/call's own INVITE-dialog state | `trying`, `proceeding`, `early`, `confirmed`, `terminated` |
+| `presence` | The `<tuple><status><basic>` element of the `application/pidf+xml` body ([RFC 3863](https://datatracker.ietf.org/doc/html/rfc3863)) | `open`, `closed`, or `unknown` if the body couldn't be read |
+| `message-summary` | The `Messages-Waiting:` line of the `application/simple-message-summary` body ([RFC 3842 §5.1](https://datatracker.ietf.org/doc/html/rfc3842#section-5.1)) | `yes`, `no` |
+
+#### expected_notify_events: asserting the NOTIFY sequence inline
+
+Rather than analysing `notify_events` after the fact, `expected_notify_events` asserts it directly and turns a mismatch into a `FAIL`, the same way `check-message`/`check-header` do for a single NOTIFY - useful when you know the exact sequence a scenario should produce (e.g. a BLF watch through one call: `trying` → `early` → `confirmed` → `terminated`).
+
+Format: `"state1,min1-max1;state2,min2-max2;..."` - semicolon-separated entries, each `state,min-max` where `min`/`max` are a millisecond range for that entry's `t_ms` (see `notify_events` above for what `t_ms` and `state` mean).
+
+```xml
+expected_notify_events="trying,0-100;early,20-60;confirmed,60-200;terminated,9500-10500"
+```
+
+Matching rules:
+* Positional, not set-based. The 1st expected entry is checked against the 1st actual `notify_events` entry, the 2nd against the 2nd, and so on - not "does this state appear somewhere". Entries in `notify_events` whose `state` is empty are ignored.
+* `state` is matched case-insensitively.
+* `min`/`max` are inclusive, and compared against that entry's actual `t_ms`.
+* Extra or missing events are both a FAIL.
+
+#### Example: presence subscribe, analysing the NOTIFY sequence
+```xml
+<config>
+  <actions>
+    <action type="register" label="register watcher"
+            transport="udp"
+            account="watcher"
+            username="watcher"
+            auth_username="watcher"
+            password="secret"
+            realm="pbx.example.com"
+            registrar="pbx.example.com"
+            expected_cause_code="200"
+    />
+    <action type="wait" ms="500"/>
+    <action type="subscribe" label="subscribe-presence"
+            caller="watcher"
+            to_uri="alice@pbx.example.com"
+            event="presence"
+            expected_cause_code="200"
+    />
+    <check-message method="NOTIFY" regex="open" />
+    <action type="wait" complete="true" ms="30000"/>
+  </actions>
+</config>
+```
+
+#### Example: dialog/BLF subscribe, asserting the NOTIFY sequence with expected_notify_events
+```xml
+<config>
+  <actions>
+    <action type="register" label="register watcher"
+            transport="udp"
+            account="watcher"
+            username="watcher"
+            auth_username="watcher"
+            password="secret"
+            realm="pbx.example.com"
+            registrar="pbx.example.com"
+            expected_cause_code="200"
+    />
+    <action type="wait" ms="500"/>
+    <action type="subscribe" label="subscribe-blf"
+            caller="watcher"
+            to_uri="alice@pbx.example.com"
+            event="dialog"
+            expected_cause_code="200"
+            expected_notify_events="trying,0-100;early,20-60;confirmed,60-200;terminated,9500-10500"
+    />
+    <!-- alice receives and answers a call here, which runs for ~10s -->
+    <action type="wait" complete="true" ms="15000"/>
+  </actions>
+</config>
+```
+If alice's call is answered later or hangs up earlier than expected, the corresponding entry's timing check fails and the `subscribe-blf` test result is `FAIL`, with the `expected_notify_events` block in `result.json` showing exactly which position and value didn't match.
 
 ### hold command parameters
 

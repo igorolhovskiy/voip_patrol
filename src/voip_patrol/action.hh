@@ -69,6 +69,7 @@ class Action {
 			void do_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
 			void do_accept_message(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const pj::SipHeaderVector &x_headers);
 			void do_bxfer(const vector<ActionParam> &params);
+			void do_subscribe(const vector<ActionParam> &params, const vector<ActionCheck> &checks);
 			void do_hold(const vector<ActionParam> &params);
 			void do_unhold(const vector<ActionParam> &params);
 			void set_config(Config *);
@@ -86,6 +87,7 @@ class Action {
 			vector<ActionParam> do_message_params;
 			vector<ActionParam> do_accept_message_params;
 			vector<ActionParam> do_bxfer_params;
+			vector<ActionParam> do_subscribe_params;
 			vector<ActionParam> do_hold_params;
 			vector<ActionParam> do_unhold_params;
 			Config* config;

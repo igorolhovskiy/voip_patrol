@@ -21,6 +21,7 @@
 #include "util.hh"
 #include "string.h"
 #include <pjsua2/presence.hpp>
+#include <pjsua-lib/pjsua.h>
 #include <stdexcept>
 #include <cctype>
 
@@ -256,6 +257,7 @@ vector<ActionParam> Action::get_params(string name) {
 	else if (name.compare("message") == 0) return do_message_params;
 	else if (name.compare("accept_message") == 0) return do_accept_message_params;
 	else if (name.compare("bxfer") == 0) return do_bxfer_params;
+	else if (name.compare("subscribe") == 0) return do_subscribe_params;
 	else if (name.compare("hold") == 0) return do_hold_params;
 	else if (name.compare("unhold") == 0) return do_unhold_params;
 	vector<ActionParam> empty_params;
@@ -469,6 +471,14 @@ void Action::init_actions_params() {
 	do_bxfer_params.push_back(ActionParam("to_uri", true, APType::apt_string));
 	do_bxfer_params.push_back(ActionParam("label", false, APType::apt_string));
 	do_bxfer_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer, "", 200));
+	// do_subscribe
+	do_subscribe_params.push_back(ActionParam("caller", true, APType::apt_string));
+	do_subscribe_params.push_back(ActionParam("to_uri", false, APType::apt_string));
+	do_subscribe_params.push_back(ActionParam("event", false, APType::apt_string, "presence"));
+	do_subscribe_params.push_back(ActionParam("expires", false, APType::apt_integer, "", 300));
+	do_subscribe_params.push_back(ActionParam("label", false, APType::apt_string, "subscribe"));
+	do_subscribe_params.push_back(ActionParam("expected_cause_code", false, APType::apt_integer, "", 200));
+	do_subscribe_params.push_back(ActionParam("expected_notify_events", false, APType::apt_string));
 	// do_hold
 	do_hold_params.push_back(ActionParam("caller", true, APType::apt_string));
 	// do_unhold
@@ -1444,12 +1454,7 @@ void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck
 		}
 
 		TestCall *call = new TestCall(acc);
-
-		// vp_on_rx_request iterates config->calls on the PJSIP worker thread
-		// under checking_calls; guard every mutation of the vector with it.
-		config->checking_calls.lock();
 		config->calls.push_back(call);
-		config->checking_calls.unlock();
 
 		call->test = test;
 		test->checks = checks;
@@ -1849,6 +1854,180 @@ void Action::do_bxfer(const vector<ActionParam> &params) {
 	config->checking_calls.unlock();
 }
 
+// Parses expected_notify_events="state1,min1-max1;state2,min2-max2;...".
+// Malformed entries are logged and skipped individually rather than failing
+// the whole scenario - a typo in one entry shouldn't silently disable the
+// rest of the check.
+static vector<ExpectedNotifyEvent> parse_expected_notify_events(const string &spec) {
+	vector<ExpectedNotifyEvent> result;
+
+	size_t start = 0;
+	while (start <= spec.size()) {
+		size_t semi = spec.find(';', start);
+		string entry = spec.substr(start, semi == string::npos ? string::npos : semi - start);
+		start = (semi == string::npos) ? spec.size() + 1 : semi + 1;
+
+		// trim
+		size_t b = entry.find_first_not_of(" \t");
+		size_t e = entry.find_last_not_of(" \t");
+		if (b == string::npos) continue; // blank entry (e.g. trailing ';')
+		entry = entry.substr(b, e - b + 1);
+
+		size_t comma = entry.find(',');
+		size_t dash = entry.find('-', comma == string::npos ? 0 : comma + 1);
+		if (comma == string::npos || dash == string::npos) {
+			LOG(logERROR) << __FUNCTION__ << ": malformed expected_notify_events entry (want state,min-max): " << entry;
+			continue;
+		}
+
+		ExpectedNotifyEvent ev;
+		ev.state = entry.substr(0, comma);
+		{
+			size_t sb = ev.state.find_first_not_of(" \t");
+			size_t se = ev.state.find_last_not_of(" \t");
+			ev.state = (sb == string::npos) ? "" : ev.state.substr(sb, se - sb + 1);
+		}
+		string min_str = entry.substr(comma + 1, dash - comma - 1);
+		string max_str = entry.substr(dash + 1);
+		ev.min_ms = safe_atoi(min_str.c_str(), -1);
+		ev.max_ms = safe_atoi(max_str.c_str(), -1);
+		if (ev.state.empty() || ev.min_ms < 0 || ev.max_ms < 0 || ev.min_ms > ev.max_ms) {
+			LOG(logERROR) << __FUNCTION__ << ": malformed expected_notify_events entry: " << entry;
+			continue;
+		}
+		result.push_back(ev);
+	}
+	return result;
+}
+
+// SUBSCRIBE to a resource (presence/dialog/message-summary) from an existing
+// account, subscriber-side only. Mirrors do_bxfer()'s shape: a Test is
+// created up front and resolved asynchronously - by TestBuddy::onBuddyEvSubState()
+// for presence/dialog, or TestAccount::onMwiInfo() for message-summary - once
+// the subscription reaches Subscription-State: terminated (or the initial
+// SUBSCRIBE is rejected outright). See README for the full state machine and
+// the per-package caveats (expires is only adjustable for message-summary;
+// presence/dialog auto-resubscribe on transient termination).
+void Action::do_subscribe(const vector<ActionParam> &params, const vector<ActionCheck> &checks) {
+	string caller {};
+	string to_uri {};
+	string event {"presence"};
+	string label {"subscribe"};
+	int expires {300};
+	int expected_cause_code {200};
+	string expected_notify_events_spec {};
+
+	for (auto &param : params) {
+		if (param.name == "caller") caller = param.s_val;
+		else if (param.name == "to_uri") to_uri = param.s_val;
+		else if (param.name == "event") event = param.s_val;
+		else if (param.name == "label") label = param.s_val;
+		else if (param.name == "expires") expires = param.i_val;
+		else if (param.name == "expected_cause_code") expected_cause_code = param.i_val;
+		else if (param.name == "expected_notify_events") expected_notify_events_spec = param.s_val;
+	}
+
+	// Create the test record immediately so any early failure can be reported via update_result()
+	Test *test = new Test(config, "subscribe");
+	test->label = label;
+	test->checks = checks;
+	test->expected_cause_code = expected_cause_code;
+	test->local_user = caller;
+	test->remote_user = to_uri;
+	if (!expected_notify_events_spec.empty()) {
+		test->expected_notify_events = parse_expected_notify_events(expected_notify_events_spec);
+	}
+
+	if (event != "presence" && event != "dialog" && event != "message-summary") {
+		LOG(logERROR) << __FUNCTION__ << ": unsupported event package: " << event
+		              << " (supported: presence, dialog, message-summary)";
+
+		test->reason = "unsupported event package: " + event;
+		test->update_result();
+		return;
+	}
+
+	if (caller.empty()) {
+		LOG(logERROR) << __FUNCTION__ << ": missing caller";
+
+		test->reason = "missing caller";
+		test->update_result();
+		return;
+	}
+
+	TestAccount *caller_acc = find_caller_account(caller);
+	if (!caller_acc) {
+		LOG(logERROR) << __FUNCTION__ << ": account not found for caller: " << caller;
+
+		test->reason = "caller account not found";
+		test->update_result();
+		return;
+	}
+
+	if (event == "message-summary") {
+		// MWI is account-scoped (RFC 3842): it subscribes to the account's own
+		// AOR, there is no separate to_uri. expires is the one package where
+		// pjsua2/pjsua actually exposes a configurable Expires.
+		try {
+			test->remote_user = caller_acc->getInfo().uri;
+		} catch (pj::Error &) {
+			// cosmetic only (JSON "to" field); ignore failures
+		}
+		if (!vp_set_mwi_enabled(caller_acc->getId(), true, (unsigned)(expires > 0 ? expires : 0))) {
+			test->reason = "enabling MWI failed";
+			test->update_result();
+			return;
+		}
+
+		caller_acc->mwi_test = test;
+		LOG(logINFO) << __FUNCTION__ << ": message-summary (MWI) subscription enabled for account " << caller;
+		return; // async: TestAccount::onMwiInfo() resolves the test
+	}
+
+	// presence / dialog: dynamically created Buddy owning the subscription.
+	if (to_uri.empty()) {
+		LOG(logERROR) << __FUNCTION__ << ": missing to_uri";
+
+		test->reason = "missing to_uri";
+		test->update_result();
+		return;
+	}
+	if (expires != 300) {
+		LOG(logWARNING) << __FUNCTION__ << ": expires is not adjustable for event=" << event
+		                << " via pjsua2 (fixed at PJSUA_PRES_TIMER); ignoring";
+	}
+
+	string buddy_uri = to_uri;
+	if (buddy_uri.find("sip:") != 0 && buddy_uri.find("sips:") != 0) {
+		buddy_uri = "sip:" + buddy_uri;
+	}
+
+	BuddyConfig buddy_cfg;
+	buddy_cfg.uri = buddy_uri;
+	buddy_cfg.subscribe = false;
+	buddy_cfg.subscribe_dlg_event = false;
+
+	TestBuddy *buddy = new TestBuddy(caller_acc, test, event);
+	try {
+		buddy->create(*caller_acc, buddy_cfg);
+		if (event == "presence") {
+			buddy->subscribePresence(true);
+		} else {
+			buddy->subscribeDlgEvent(true);
+		}
+	} catch (pj::Error &e) {
+		LOG(logERROR) << __FUNCTION__ << ": subscribe failed: " << e.reason;
+
+		delete buddy;
+		test->reason = "subscribe failed: " + e.reason;
+		test->update_result();
+		return;
+	}
+
+	config->subscriptions.push_back(buddy);
+	LOG(logINFO) << __FUNCTION__ << ": SUBSCRIBE (" << event << ") sent to " << buddy_uri << " from " << caller;
+}
+
 // Wrapper for looking account in a "caller" form
 TestAccount* Action::find_caller_account(const string &caller) {
 	TestAccount *acc = config->findAccount(caller);
@@ -1999,6 +2178,17 @@ void Action::do_wait(const vector<ActionParam> &params) {
 
 	while (!completed) {
 
+		// Incoming calls are accepted on the PJSIP network thread and queued in new_calls.
+		// Move them into the main calls list here, on the wait-loop thread, to avoid
+		// touching config->calls from two threads simultaneously.
+		config->new_calls_lock.lock();
+		if (!config->new_calls.empty()) {
+			auto it = config->new_calls.begin();
+			config->calls.push_back(std::move(*it));
+			config->new_calls.erase(it);
+		}
+		config->new_calls_lock.unlock();
+
 		// Account-level tests (e.g. registration): clean up finished ones and count active ones.
 		for (auto & account : config->accounts) {
 			AccountInfo acc_inf = account->getInfo();
@@ -2015,6 +2205,19 @@ void Action::do_wait(const vector<ActionParam> &params) {
 			}
 			// accept/message_count, are considered "tests_running" when maximum duration is either not specified or reached.
 			if (account->message_count > 0 && (duration_ms > 0 || duration_ms == -1)) {
+				tests_running += 1;
+			}
+			// event="message-summary" subscribe test pending (see TestAccount::onMwiInfo).
+			if (account->mwi_test && account->mwi_test->state != VPT_DONE) {
+				tests_running += 1;
+			}
+		}
+
+		// event="presence"/"dialog" subscribe tests pending (see TestBuddy::onBuddyEvSubState).
+		// Without this, wait complete="true" doesn't actually wait for a subscribe to
+		// resolve - it only appeared to work when the SUBSCRIBE failed/resolved fast.
+		for (auto &buddy : config->subscriptions) {
+			if (buddy->test && buddy->test->state != VPT_DONE) {
 				tests_running += 1;
 			}
 		}

@@ -1159,6 +1159,15 @@ void TestAccount::onRegState(OnRegStateParam &prm) {
 			pjsip_rx_data *pjsip_data = (pjsip_rx_data *) prm.rdata.pjRxData;
 			test->transport = pjsip_data->tp_info.transport->type_name;
 		}
+
+		if ( ai.regIsActive ) { 
+			pjsip_rx_data *pjsip_data = (pjsip_rx_data *) prm.rdata.pjRxData;
+
+			std::string message;
+			message.append(pjsip_data->msg_info.msg_buf, pjsip_data->msg_info.len);
+			check_checks(test->checks, pjsip_data->msg_info.msg, message);
+		}
+
 		std::string res = "registration[" + std::to_string(prm.code) + "] reason[" + prm.reason + "] expiration[" + std::to_string(prm.expiration) + "]";
 		LOG(logINFO) << __FUNCTION__ << "[onRegState] " << res;
 		test->result_cause_code = (int)prm.code;
@@ -2185,6 +2194,13 @@ replay:
 				if (val_inner) {
 					check.method = string(val_inner);
 				}
+
+       		    // Optional count for responses with multiple contact headers - default all
+				val_inner = ezxml_attr(xml_check, "count");
+				if (val_inner) {
+					check.count = string(val_inner);
+				}
+
 				val_inner = ezxml_attr(xml_check, "value");
 				if (val_inner) {
 					check.hdr.hValue = val_inner;

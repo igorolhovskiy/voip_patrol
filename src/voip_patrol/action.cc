@@ -689,6 +689,7 @@ void Action::do_register(const vector<ActionParam> &params, const vector<ActionC
 	}
 
 	Test *test = new Test(config, type);
+    test->checks = checks;
 	test->local_user = username;
 	test->remote_user = username;
 	test->label = label;

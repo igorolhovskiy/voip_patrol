@@ -134,6 +134,44 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 - *`check-header` accepts an optional `method` attribute (default `INVITE`) selecting which incoming request the check applies to, e.g. `method="REFER"`.*
 - *Checks declared under a `call` action are now evaluated against incoming requests on the caller leg.*
 
+### Example: registering and checking the Contact header contains specific content
+
+```xml
+<config><actions>
+       <action type="register" 
+       label="Register alice-1" 
+       account="101-1" 
+       username="101" 
+       password="SuperSecretPass" 
+       registrar="asterisk.service.consul" 
+       expected_cause_code="200"/>
+
+       <action type="register" 
+       label="Register alice-1" 
+       account="101-2" 
+       username="101" 
+       password="SuperSecretPass" 
+       registrar="asterisk.service.consul" 
+       expected_cause_code="200"/>
+
+        <check-header name="Contact" method="OK" regex=".*[:=]101-1.*" count="1" />
+        <check-header name="Contact" method="OK" regex=".*[:=]101-2.*" count="1" />
+        <check-header name="Contact" method="OK" regex="\<sip:.*" count="2" />
+
+        <!-- all by default -->
+        <check-header name="Expires" method="OK" regex="[1-9][0-9]*" />
+        <check-header name="Expires" method="OK" value="300" />
+
+        </action>
+
+      <action type="wait" complete="true" ms="2000"/>
+    </actions>
+</config>
+
+```
+
+
+
 ### Example: accepting calls and searching the message with a regular expression
 ```xml
 <config>

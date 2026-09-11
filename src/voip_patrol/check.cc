@@ -20,8 +20,6 @@
 #include "pj_util.hpp"
 #include <regex>
 
-
-
 bool check_regex(string m, string e) {
 	std::istringstream ss(m);
 	std::string line;
@@ -112,48 +110,74 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 					LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
 				}
 				continue;
-			}
+			} // R-URI
 
-			LOG(logINFO) << __FUNCTION__ << " check-header:" << check->hdr.hName << " " << check->hdr.hValue;
+			// start of pasted code
+			LOG(logINFO) << __FUNCTION__ << " check-header:" << check->hdr.hName << " " << check->hdr.hValue << " count=" << check->count;
 
 			pj_str_t header_name;
 			header_name.slen = strlen(check->hdr.hName.c_str());
 			header_name.ptr = (char*) check->hdr.hName.c_str();
 
-			pjsip_hdr* s_hdr = (pjsip_hdr*) pjsip_msg_find_hdr_by_name(msg, (const pj_str_t *) &header_name, NULL);
-			if (s_hdr) {
+			// Determine if we need to match all headers or a specific count
+			bool match_all = (check->count == "all");
+			int required_count = match_all ? 0 : std::stoi(check->count);
+			int matched_count = 0;
+			int total_found = 0;
+
+			// Iterate through all matching headers
+			pjsip_hdr* s_hdr = nullptr;
+			while ((s_hdr = (pjsip_hdr*) pjsip_msg_find_hdr_by_name(msg, (const pj_str_t *) &header_name, s_hdr == nullptr ? nullptr : s_hdr->next)) != nullptr) {
+				total_found++;
+
 				SipHeader SHdr;
 				SHdr.fromPj(s_hdr);
 
+				bool value_matches = false;
+
 				if (check->hdr.hValue == "" || check->hdr.hValue == SHdr.hValue) {
 					LOG(logINFO) << __FUNCTION__ << " header found and value is matching:" << SHdr.hName << " " << SHdr.hValue;
-
-					check->result = true;
+					value_matches = true;
 				} else {
-					// Check if we have regex in pattern
-					if (check->hdr.hValue.length() >= 6 && check->hdr.hValue.substr(0,6) == "regex/") {
-						std::string header_value_regex = check->hdr.hValue.substr(6);
+				// Check if we have regex in pattern
+				if (check->hdr.hValue.length() >= 6 && check->hdr.hValue.substr(0,6) == "regex/") {
+					std::string header_value_regex = check->hdr.hValue.substr(6);
 
-						if (check_regex(SHdr.hValue, header_value_regex)) {
-							LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is matching in regex style: " << SHdr.hValue << " =~ " << header_value_regex;
-
-							check->result = true;
-						}
-					} else {
-						LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is not matching: " << SHdr.hValue << " != " << check->hdr.hValue;
+					if (check_regex(SHdr.hValue, header_value_regex)) {
+					LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is matching in regex style: " << SHdr.hValue << " =~ " << header_value_regex;
+					value_matches = true;
 					}
+				} else {
+					LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is not matching: " << SHdr.hValue << " != " << check->hdr.hValue;
+				}
 				}
 
-				if (check->fail_on_match) {
-					check->result = not check->result;
-
-					LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
+				if (value_matches) {
+					matched_count++;
+				} else if (match_all) {
+				// If we need all to match and this one doesn't, fail early
+				break;
 				}
-
-				continue;
 			}
-			// If header not found, we consider it as a fail anyways
-			LOG(logINFO) << __FUNCTION__ << " header not found";
+
+			// Evaluate the result based on count requirement
+			if (match_all) {
+				// All headers must match (and at least one must exist)
+				check->result = (total_found > 0 && matched_count == total_found);
+				LOG(logINFO) << __FUNCTION__ << " match_all: found=" << total_found << " matched=" << matched_count << " result=" << check->result;
+			} else {
+				// At least the required count must match
+				check->result = (matched_count >= required_count);
+				LOG(logINFO) << __FUNCTION__ << " required=" << required_count << " matched=" << matched_count << " result=" << check->result;
+			}
+
+			if (check->fail_on_match) {
+				check->result = not check->result;
+				LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
+			}
+			
+			// end of pasted code
+
 			continue;
 		}
 

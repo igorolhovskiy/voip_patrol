@@ -28,6 +28,7 @@ class ActionCheck {
 	public:
 		pj::SipHeader hdr;
 		string regex;
+		string count {"all"};
 		string method {"INVITE"};
 		string type {};
 		int code {0};

@@ -2157,12 +2157,11 @@ replay:
 			for (xml_check = ezxml_child(xml_action, "check-message"); xml_check; xml_check=xml_check->next) {
 				ActionCheck check;
 				check.type = "message";
+				// If any - set default method
+				check.method = default_check_method(val);
 				const char * val_inner = ezxml_attr(xml_check, "method");
 				if (val_inner) {
 					check.method = string(val_inner);
-				} else {
-					LOG(logERROR) <<__FUNCTION__<<"<check-message> missing [method] param !";
-					continue;
 				}
 				val_inner = ezxml_attr(xml_check, "regex");
 				if (val_inner) {

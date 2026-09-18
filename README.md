@@ -149,7 +149,6 @@ This version is extension of [original project](https://github.com/jchavanton/vo
 - *The `method` default is depends on the action: `REGISTER` for `register`, `MESSAGE` for `message` and `accept_message`, `NOTIFY` for `subscribe`, `INVITE` for everything else. Set `method` explicitly to check another request, e.g. `method="REFER"` on an `accept` action.*
 - *Checks are evaluated against responses too, not only requests. A response is matched on the method of its `CSeq` header, so `method="REGISTER"` also covers the `200 OK` answering the REGISTER.*
 - *Checks declared under a `call` action are evaluated against incoming requests on the caller leg.*
-- *`check-message` still requires an explicit `method` attribute, it has no default.*
 
 ### Example: accepting calls and searching the message with a regular expression
 ```xml
@@ -160,7 +159,7 @@ This version is extension of [original project](https://github.com/jchavanton/vo
             hangup="5"
             code="200" reason="OK"
     >
-        <check-message method="INVITE" regex="m=audio(.*)RTP/AVP 0 8.*"/>
+        <check-message regex="m=audio(.*)RTP/AVP 0 8.*"/>
         <!-- searching for pcmu pcma in the SDP -->
     </action>
     <action type="wait" ms="-1"/>
@@ -266,7 +265,7 @@ to the REGISTER, so there is no need to spell out `method="REGISTER"`.
         <!-- The registrar may return several Contact headers, all of them must carry an expires param -->
         <check-header name="P-Associated-URI" count="2"/>
         <!-- Check that exactly 2 associated URIs were returned -->
-        <check-message method="REGISTER" regex="^Server:.*" fail_on_match="true"/>
+        <check-message regex="^Server:.*" fail_on_match="true"/>
         <!-- The registrar should not leak its Server header -->
     </action>
     <action type="wait" complete="true"/>
@@ -623,7 +622,7 @@ incoming MESSAGE, `method` defaults to `MESSAGE`.
         <check-header name="X-Foo" value="Bar"/>
         <!-- Check a custom header on the incoming MESSAGE -->
         <check-header name="From" regex="^.*sip:15876580542@.*"/>
-        <check-message method="MESSAGE" regex="^Content-Type: text/plain.*"/>
+        <check-message regex="^Content-Type: text/plain.*"/>
     </action>
     <action type="wait" complete="true"/>
   </actions>
@@ -717,7 +716,7 @@ Subscriber-side only: `subscribe` sends a SUBSCRIBE from an existing account (cr
 | expected_cause_code | int | Expected SIP response code to the SUBSCRIBE request itself, default `200` |
 | expected_notify_events | string | Assert the exact `notify_events` sequence (state and timing). Format: `"state1,tmin1-tmax1;state2,tmin2-tmax2;..."`, e.g. `expected_notify_events="trying,0-100;early,20-60;confirmed,60-200;terminated,9500-10500"`. See below |
 
-Any `check-message`/`check-header` with `method="NOTIFY"` is evaluated against every NOTIFY received on the subscription, same as `method="REFER"` checks on `bxfer`/`accept`. For `check-header` under a `subscribe` action `NOTIFY` is the default, so `method` can be omitted; `check-message` always needs it spelled out.
+Any `check-message`/`check-header` with `method="NOTIFY"` is evaluated against every NOTIFY received on the subscription, same as `method="REFER"` checks on `bxfer`/`accept`. For `check-header` under a `subscribe` action `NOTIFY` is the default, so `method` can be omitted.
 
 #### Events
 

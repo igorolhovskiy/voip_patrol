@@ -28,6 +28,8 @@ class ActionCheck {
 	public:
 		pj::SipHeader hdr;
 		string regex;
+		// Empty means "any instance matches", a number means "exactly N instances match", "all" means every instance must match.
+		string count {};
 		string method {"INVITE"};
 		string type {};
 		int code {0};
@@ -36,6 +38,7 @@ class ActionCheck {
 };
 
 bool check_regex(string m, string e);
+string default_check_method(const string &action_type);
 void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& message);
 
 #endif

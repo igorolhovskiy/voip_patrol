@@ -29,7 +29,9 @@ bool check_regex(string m, string e) {
 
 	while (std::getline(ss, line)) {
 		// Remove CRLF leftovers
-		line.pop_back();
+		if (!line.empty() && line.back() == '\r') {
+			line.pop_back();
+		}
 
 		if (std::regex_match(line, re)) {
 			LOG(logINFO) << __FUNCTION__ << " [" << e << "] ~= [" << line << "]";
@@ -44,8 +46,37 @@ bool check_regex(string m, string e) {
 }
 
 
+// Apply default method in check-header based on action
+string default_check_method(const string &action_type) {
+	if (action_type == "register") {
+		return "REGISTER";
+	}
+	if (action_type == "message" || action_type == "accept_message") {
+		return "MESSAGE";
+	}
+	if (action_type == "subscribe") {
+		return "NOTIFY";
+	}
+
+	return "INVITE";
+}
+
+
 void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& message) {
-	std::string method = pj2Str(msg->line.req.method.name);
+	std::string method;
+
+	// Check if we have correct CSeq
+	if (msg->type == PJSIP_RESPONSE_MSG) {
+		pjsip_cseq_hdr *cseq_hdr = (pjsip_cseq_hdr *) pjsip_msg_find_hdr(msg, PJSIP_H_CSEQ, NULL);
+
+		if (!cseq_hdr) {
+			LOG(logWARNING) << __FUNCTION__ << ": response without CSeq header, skipping checks";
+			return;
+		}
+		method = pj2Str(cseq_hdr->method.name);
+	} else {
+		method = pj2Str(msg->line.req.method.name);
+	}
 
 	LOG(logINFO) << __FUNCTION__ << ": " << method;
 
@@ -120,15 +151,43 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 			header_name.slen = strlen(check->hdr.hName.c_str());
 			header_name.ptr = (char*) check->hdr.hName.c_str();
 
-			pjsip_hdr* s_hdr = (pjsip_hdr*) pjsip_msg_find_hdr_by_name(msg, (const pj_str_t *) &header_name, NULL);
-			if (s_hdr) {
+			// count is optional: without it the check passes as soon as one instance
+			// matches, which is the behaviour when a header is present only once.
+			bool count_all = (check->count == "all");
+			bool use_count = !check->count.empty();
+			int required_count = 0;
+
+			if (use_count && !count_all) {
+				try {
+					required_count = std::stoi(check->count);
+				} catch (const std::exception &e) {
+					LOG(logERROR) << __FUNCTION__ << " header " << check->hdr.hName << " invalid count[" << check->count << "], expecting a number or \"all\"";
+
+					continue;
+				}
+			}
+
+			// A header can be present more than once (Contact, Via, Record-Route, ...),
+			// without count we stop at the first instance that matches.
+			bool header_found = false;
+			int total_found = 0;
+			int matched_count = 0;
+
+			for (pjsip_hdr* s_hdr = (pjsip_hdr*) pjsip_msg_find_hdr_by_name(msg, (const pj_str_t *) &header_name, NULL);
+			     s_hdr && (use_count || !check->result);
+			     s_hdr = (pjsip_hdr*) pjsip_msg_find_hdr_by_name(msg, (const pj_str_t *) &header_name, s_hdr->next)) {
+				header_found = true;
+				total_found++;
+
+				bool value_matches = false;
+
 				SipHeader SHdr;
 				SHdr.fromPj(s_hdr);
 
 				if (check->hdr.hValue == "" || check->hdr.hValue == SHdr.hValue) {
 					LOG(logINFO) << __FUNCTION__ << " header found and value is matching:" << SHdr.hName << " " << SHdr.hValue;
 
-					check->result = true;
+					value_matches = true;
 				} else {
 					// Check if we have regex in pattern
 					if (check->hdr.hValue.length() >= 6 && check->hdr.hValue.substr(0,6) == "regex/") {
@@ -137,23 +196,41 @@ void check_checks(vector<ActionCheck> &checks, pjsip_msg* msg, const string& mes
 						if (check_regex(SHdr.hValue, header_value_regex)) {
 							LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is matching in regex style: " << SHdr.hValue << " =~ " << header_value_regex;
 
-							check->result = true;
+							value_matches = true;
 						}
 					} else {
 						LOG(logINFO) << __FUNCTION__ << " header " << SHdr.hName << " found and value is not matching: " << SHdr.hValue << " != " << check->hdr.hValue;
 					}
 				}
 
-				if (check->fail_on_match) {
-					check->result = not check->result;
+				if (value_matches) {
+					matched_count += 1;
 
-					LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
+					if (!use_count) {
+						check->result = true;
+					}
 				}
+			}
 
+			if (!header_found) {
+				// If header not found, we consider it as a fail anyways
+				LOG(logINFO) << __FUNCTION__ << " header not found";
 				continue;
 			}
-			// If header not found, we consider it as a fail anyways
-			LOG(logINFO) << __FUNCTION__ << " header not found";
+
+			if (use_count) {
+				check->result = count_all ? (matched_count == total_found)
+				                          : (matched_count == required_count);
+
+				LOG(logINFO) << __FUNCTION__ << " header " << check->hdr.hName << " matched " << matched_count << "/" << total_found << " instances, count[" << check->count << "] result:" << check->result;
+			}
+
+			if (check->fail_on_match) {
+				check->result = not check->result;
+
+				LOG(logINFO) << __FUNCTION__ << ": fail_on_match is true, inverting result to " << check->result;
+			}
+
 			continue;
 		}
 

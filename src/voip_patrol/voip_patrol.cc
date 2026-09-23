@@ -2387,6 +2387,8 @@ int main(int argc, char **argv){
 	bool tcp_only = false;
 	bool udp_only = false;
 	int timer_ms = 0;
+	int max_calls = PJSUA_MAX_CALLS;
+	std::vector<std::string> nameservers;
 	config.rtp_cfg.port = 4000;
 	ep.config = &config;
 	config.ep = &ep;
@@ -2420,6 +2422,8 @@ int main(int argc, char **argv){
             " --bound-addr <IP>                 Bind transports to this IP interface\n"\
  			" --rtp-port <1-65535>              Starting port of the range used for RTP\n"\
             " --rtp-port-end <1-65535>          End of of the range range used for RTP\n"\
+            " --nameserver <IP|host>            DNS nameserver for SIP SRV/NAPTR resolution; repeat for multiple\n"\
+            " --max-calls <N>                   Maximum number of concurrent calls (default and maximum 512)\n"\
             "                                                             \n";
 			return 0;
 		} else if ( (arg == "-v") || (arg == "--version") ) {
@@ -2432,6 +2436,19 @@ int main(int argc, char **argv){
 		} else if ( (arg == "-t") || (arg == "--timer_ms") ) {
 			if (i + 1 < argc) {
 				timer_ms = safe_atoi(argv[++i]);
+			}
+		} else if ( arg == "--max-calls" ) {
+			if (i + 1 < argc) {
+				max_calls = safe_atoi(argv[++i], max_calls);
+				// Max calls cannot be more than PJSUA_MAX_CALLS (compile time, see include/config_site.h),
+				if (max_calls > PJSUA_MAX_CALLS || max_calls < 1) {
+					LOG(logERROR) << "--max-calls " << max_calls << " out of range [1-" << PJSUA_MAX_CALLS << "], using " << PJSUA_MAX_CALLS;
+					max_calls = PJSUA_MAX_CALLS;
+				}
+			}
+		} else if ( arg == "--nameserver" ) {
+			if (i + 1 < argc) {
+				nameservers.push_back(argv[++i]);
 			}
 		} else if ( (arg == "--graceful-shutdown") ) {
 			config.graceful_shutdown = true;
@@ -2536,7 +2553,7 @@ int main(int argc, char **argv){
 			PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
 		}
 		EpConfig ep_cfg;
-		ep_cfg.uaConfig.maxCalls = 1000;
+		ep_cfg.uaConfig.maxCalls = max_calls;
 		// Use more than one SIP worker so incoming NOTIFY on REFER processing is not
 		// fully blocked if one worker is temporarily busy on dialog/callback work.
 		ep_cfg.uaConfig.threadCnt = 2;
@@ -2546,7 +2563,10 @@ int main(int argc, char **argv){
 		ep_cfg.logConfig.filename = pj_log_fn.c_str();
 		ep_cfg.medConfig.ecTailLen = 0; // disable echo canceller
 		ep_cfg.medConfig.noVad = 1;
-		// ep_cfg.uaConfig.nameserver.push_back("8.8.8.8");
+		for (const auto& ns : nameservers) {
+			ep_cfg.uaConfig.nameserver.push_back(ns);
+			LOG(logINFO) << "nameserver: " << ns;
+		}
 
 		ep.libInit(ep_cfg);
 		// pjsua_set_null_snd_dev() before calling pjsua_start().

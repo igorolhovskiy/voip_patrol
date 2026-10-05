@@ -2797,8 +2797,12 @@ int main(int argc, char **argv){
 		pj_thread_sleep(50);
 	}
 
-	// Release any subscribe resources
+	// Release any subscribe resources, event they are not in "terminated" state
+	std::vector<Test *> pending_subscribe_tests;
 	for (auto *buddy : config.subscriptions) {
+		if (buddy->test && !buddy->test->completed) {
+			pending_subscribe_tests.push_back(buddy->test);
+		}
 		delete buddy;
 	}
 	config.subscriptions.clear();
@@ -2808,8 +2812,22 @@ int main(int argc, char **argv){
 			continue;
 		}
 		LOG(logINFO) <<__FUNCTION__<<": disabling MWI subscription for account " << acc->account_name;
-		vp_set_mwi_enabled(acc->getId(), false, 0);
+
+		Test *mwi_test = acc->mwi_test;
 		acc->mwi_test = nullptr;
+		vp_set_mwi_enabled(acc->getId(), false, 0);
+		if (!mwi_test->completed) {
+			pending_subscribe_tests.push_back(mwi_test);
+		}
+	}
+
+	for (auto *test : pending_subscribe_tests) {
+		LOG(logINFO) <<__FUNCTION__<<": subscribe [" << test->label << "] still active at end of scenario, reporting "
+		             << test->notify_events.size() << " NOTIFY event(s)";
+
+		test->result_cause_code = test->subscribe_confirmed ? 200 : 0;
+		test->reason = test->subscribe_confirmed ? "subscription active at end of scenario" : "no response to SUBSCRIBE";
+		test->update_result();
 	}
 
 	try {

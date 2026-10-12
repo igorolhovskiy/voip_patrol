@@ -2551,6 +2551,9 @@ int main(int argc, char **argv){
 			struct pjsua_data* pjsua_var = pjsua_get_var();
 			pj_status_t status = pjsip_endpt_register_module(pjsua_var->endpt, &mod_voip_patrol);
 			PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
+			// SIP message trace; output is logDEBUG.
+			status = pjsip_endpt_register_module(pjsua_var->endpt, &mod_vp_msg_logger);
+			PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
 		}
 		EpConfig ep_cfg;
 		ep_cfg.uaConfig.maxCalls = max_calls;

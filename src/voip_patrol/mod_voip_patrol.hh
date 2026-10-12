@@ -24,6 +24,8 @@
 
 pj_status_t vp_on_tx_msg(pjsip_tx_data *tdata);
 pj_bool_t vp_on_rx_request(pjsip_rx_data *rdata);
+pj_bool_t vp_on_rx_msg_log(pjsip_rx_data *rdata);
+pj_status_t vp_on_tx_msg_log(pjsip_tx_data *tdata);
 
 const char *mod_name = "mod_voip_patrol";
 
@@ -41,6 +43,26 @@ pjsip_module mod_voip_patrol = {
 	NULL,                           /* on_rx_response()         */
 	vp_on_tx_msg,                   /* on_tx_request()          */
 	NULL,                           /* on_tx_response()         */
+	NULL,                           /* on_tsx_state()           */
+};
+
+// SIP message trace at logDEBUG. Priority 0 (below mod_voip_patrol's 1) so RX
+// is logged before any module can consume it and TX after all rewrites.
+const char *mod_msg_logger_name = "mod_vp_msg_logger";
+
+pjsip_module mod_vp_msg_logger = {
+	NULL, NULL,                     /* prev, next.              */
+	{ (char *)mod_msg_logger_name, 17 }, /* Name.               */
+	-1,                             /* Id                       */
+	0,                              /* Priority                 */
+	NULL,                           /* load()                   */
+	NULL,                           /* start()                  */
+	NULL,                           /* stop()                   */
+	NULL,                           /* unload()                 */
+	vp_on_rx_msg_log,               /* on_rx_request()          */
+	vp_on_rx_msg_log,               /* on_rx_response()         */
+	vp_on_tx_msg_log,               /* on_tx_request()          */
+	vp_on_tx_msg_log,               /* on_tx_response()         */
 	NULL,                           /* on_tsx_state()           */
 };
 

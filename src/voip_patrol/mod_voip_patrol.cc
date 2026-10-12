@@ -354,3 +354,28 @@ pj_status_t vp_on_tx_msg(pjsip_tx_data *tdata) {
 	/* Always return success, otherwise message will not get sent! */
 	return PJ_SUCCESS;
 }
+
+// SIP message trace at logDEBUG. Runs in mod_vp_msg_logger, which has a lower
+// priority than mod_voip_patrol: it sees RX first (raw packet) and TX last
+// (after transport encoding and any ACK rewrite), so the bytes are on-wire.
+pj_bool_t vp_on_rx_msg_log(pjsip_rx_data *rdata) {
+	LOG(logDEBUG) << "RX " << rdata->msg_info.len << " bytes "
+	              << pjsip_rx_data_get_info(rdata) << " from "
+	              << (rdata->tp_info.transport ? rdata->tp_info.transport->type_name : "?")
+	              << " " << rdata->pkt_info.src_name << ":" << rdata->pkt_info.src_port << ":\n"
+	              << std::string(rdata->msg_info.msg_buf, rdata->msg_info.len)
+	              << "--end msg--";
+	return PJ_FALSE; // observe only
+}
+
+pj_status_t vp_on_tx_msg_log(pjsip_tx_data *tdata) {
+	const pj_ssize_t len = tdata->buf.cur - tdata->buf.start;
+	LOG(logDEBUG) << "TX " << len << " bytes "
+	              << pjsip_tx_data_get_info(tdata) << " to "
+	              << (tdata->tp_info.transport ? tdata->tp_info.transport->type_name : "?")
+	              << " " << (tdata->tp_info.dst_name[0] ? tdata->tp_info.dst_name : "?")
+	              << ":" << tdata->tp_info.dst_port << ":\n"
+	              << std::string(tdata->buf.start, len)
+	              << "--end msg--";
+	return PJ_SUCCESS; // otherwise the message is not sent
+}

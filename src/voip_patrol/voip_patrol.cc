@@ -364,6 +364,12 @@ static pj_status_t stream_to_call(TestCall* call, pjsua_call_id call_id, const c
 		return status;
 	}
 
+	// "silence" (also the default when play is omitted) disables playback
+	if (call->test->play.empty() || call->test->play == play_silence) {
+		LOG(logINFO) << __FUNCTION__ << ": [stream_to_call] play=silence, skipping player";
+		return PJ_SUCCESS;
+	}
+
 	// Create a player if none.
 	if (!call->player.is_valid()) {
 		LOG(logINFO) <<__FUNCTION__<< ": [stream_to_call] streaming file: " << call->test->play;
@@ -2037,8 +2043,8 @@ void Config::createDefaultAccount() {
 	acc_cfg.callConfig.timerUse = PJSUA_SIP_TIMER_INACTIVE;
 
 	TestAccount *acc = createAccount(acc_cfg);
-	acc->play = default_playback_file;
-	LOG(logINFO) <<__FUNCTION__<<" created:"<<default_playback_file <<" TURN:"<< acc_cfg.natConfig.turnEnabled;
+	acc->play = play_silence;
+	LOG(logINFO) <<__FUNCTION__<<" created, TURN:"<< acc_cfg.natConfig.turnEnabled;
 }
 
 TestAccount* Config::createAccount(AccountConfig acc_cfg) {
@@ -2066,7 +2072,7 @@ TestAccount* Config::createAccount(AccountConfig acc_cfg) {
 	account->create(acc_cfg);
 	AccountInfo acc_inf = account->getInfo();
 	LOG(logINFO) << __FUNCTION__<< ": ["<< acc_inf.id << "]["<<acc_inf.uri<<"]";
-	account->play = default_playback_file;
+	account->play = play_silence;
 	return account;
 }
 

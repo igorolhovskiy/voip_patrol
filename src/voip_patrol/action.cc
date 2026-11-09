@@ -860,7 +860,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 	string account_name {};
 	string transport {};
 	string label {};
-	string play {default_playback_file};
+	string play {play_silence};
 	string recording {};
 	bool record_early {false};
 	string play_dtmf {};
@@ -1122,7 +1122,7 @@ void Action::do_accept(const vector<ActionParam> &params, const vector<ActionChe
 
 void Action::do_call(const vector<ActionParam> &params, const vector<ActionCheck> &checks, const SipHeaderVector &x_headers) {
 	string type {"call"};
-	string play {default_playback_file};
+	string play {play_silence};
 	string play_dtmf {};
 	string expected_dtmf {};
 	string timer {};

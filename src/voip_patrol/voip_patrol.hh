@@ -270,7 +270,8 @@ string get_call_state_string (call_state_t state);
 // the hold/unhold "_<n>" segment suffix, so the two mechanisms never collide.
 string make_indexed_recording (const string &base, int index);
 
-const char default_playback_file[] = "/voice_ref_files/8000.wav";
+// Default value of the "play" parameter: no player is created, so silence is sent.
+const char play_silence[] = "silence";
 
 typedef enum test_run_state {
 	VPT_RUN,              // test is running
